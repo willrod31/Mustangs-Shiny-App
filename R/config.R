@@ -1,7 +1,7 @@
-# Settings for the Mustangs Report Hub.
+# Settings for the Mustangs Analytics Hub.
 # Every path is relative to the app folder so it works on shinyapps.io.
 
-APP_TITLE <- "Mustangs Report Hub"
+APP_TITLE <- "Mustangs Analytics Hub"
 
 # How our team shows up in TrackMan's PitcherTeam / BatterTeam columns.
 # Home and road files sometimes use different codes, so this is a vector.

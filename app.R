@@ -44,6 +44,20 @@ nav.navbar { border-bottom: 4px solid var(--silver) !important; }
     font-size: .93rem; }
 }
 @media (min-width: 992px) and (max-width: 1399.98px) { .brand-name { display: none; } }
+/* Phones: a smaller name and badge so the hamburger stays on screen */
+@media (max-width: 575.98px) {
+  .brand-name { font-size: 1rem; }
+  .brand-badge { margin-right: .45rem; }
+  .brand-badge img { height: 28px; }
+}
+@media (max-width: 399.98px) {
+  .brand-name { font-size: .9rem; }
+  .navbar-toggler { padding: .2rem .45rem; }
+}
+@media (max-width: 349.98px) {
+  .brand-name { font-size: .78rem; }
+  .brand-badge img { height: 24px; }
+}
 
 /* Login screen */
 #login-overlay { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center;

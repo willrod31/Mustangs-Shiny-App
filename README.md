@@ -1,4 +1,4 @@
-# Mustangs Report Hub
+# Mustangs Analytics Hub
 
 A private R Shiny site for the Martinsville Mustangs. Players and coaches log in
 to find each game's box score and pitcher, hitter and umpire reports, TrackMan
