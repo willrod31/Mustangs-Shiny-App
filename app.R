@@ -290,7 +290,7 @@ server <- function(input, output, session) {
 
   # Posting reports (coaches only)
   output$post_card <- renderUI({
-    req(is_coach(user()), selected_game())
+    req(is_staff(user()), selected_game())
     files_bump() # clears the file input after a post
     card(
       fill = FALSE,
@@ -312,7 +312,7 @@ server <- function(input, output, session) {
   })
 
   observeEvent(input$post_btn, {
-    req(is_coach(user()), selected_game())
+    req(is_staff(user()), selected_game())
     f <- input$post_file
     if (is.null(f)) {
       showNotification("Choose a file first.", type = "warning")
@@ -378,7 +378,7 @@ server <- function(input, output, session) {
     display <- rows |>
       transmute(Date = date, Title = title, Category = category, Opponent = opponent,
                 Player = player, Visibility = visibility)
-    if (!is_coach(user())) display$Visibility <- NULL
+    if (!is_staff(user())) display$Visibility <- NULL
     datatable(
       display,
       rownames = FALSE,
@@ -429,28 +429,28 @@ server <- function(input, output, session) {
   # Upload tab (coaches only). Added after a coach logs in so players never
   # get it in their page at all.
   observeEvent(user(), {
-    if (is_coach(user())) {
+    if (is_staff(user())) {
       nav_insert("main_nav", nav_panel("Upload", value = "upload", upload_ui()),
                  target = "library", position = "after")
     }
   }, once = TRUE)
 
   observe({
-    req(is_coach(user()))
+    req(is_staff(user()))
     opps <- sort(unique(c(sched()$opponent, lib_all()$opponent)))
     updateSelectizeInput(session, "up_opponent", choices = c("", opps[opps != ""]),
                          selected = isolate(input$up_opponent))
   })
 
   observe({
-    req(is_coach(user()))
+    req(is_staff(user()))
     idx <- lib_all() |> arrange(desc(uploaded_at))
     labels <- paste0(idx$title, " (", idx$category, ifelse(idx$date != "", paste0(", ", idx$date), ""), ")")
     updateSelectInput(session, "del_id", choices = setNames(idx$id, labels))
   })
 
   observeEvent(input$up_btn, {
-    req(is_coach(user()))
+    req(is_staff(user()))
     f <- input$up_file
     if (!nzchar(trimws(input$up_title))) {
       showNotification("Add a title.", type = "warning")
@@ -483,7 +483,7 @@ server <- function(input, output, session) {
   })
 
   observeEvent(input$del_btn, {
-    req(is_coach(user()), input$del_id)
+    req(is_staff(user()), input$del_id)
     item <- lib_all() |> filter(id == input$del_id)
     req(nrow(item) == 1)
     showModal(modalDialog(
@@ -498,7 +498,7 @@ server <- function(input, output, session) {
   })
 
   observeEvent(input$del_confirm, {
-    req(is_coach(user()), input$del_id)
+    req(is_staff(user()), input$del_id)
     delete_library_item(input$del_id)
     if (identical(lib_selected(), input$del_id)) lib_selected(NULL)
     removeModal()

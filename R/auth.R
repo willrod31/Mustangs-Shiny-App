@@ -30,10 +30,6 @@ check_login <- function(username, password, path = USERS_FILE) {
   list(username = row$username[1], name = row$name[1], role = row$role[1])
 }
 
-is_coach <- function(user) {
-  !is.null(user) && identical(user$role, "coach")
-}
-
 login_ui <- function() {
   div(
     id = "login-overlay",

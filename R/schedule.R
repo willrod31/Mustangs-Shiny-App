@@ -101,7 +101,7 @@ scan_game_files <- function(dir = GAMES_DIR) {
 game_files <- function(game_id, user, listing = scan_game_files()) {
   gid <- game_id
   out <- listing |> filter(game_id == gid)
-  if (!is_coach(user)) out <- out |> filter(!coaches)
+  if (!is_staff(user)) out <- out |> filter(!coaches)
   out |>
     arrange(match(type, GAME_REPORT_TYPES), coaches, name) |>
     select(path, name, type, coaches)
@@ -109,7 +109,7 @@ game_files <- function(game_id, user, listing = scan_game_files()) {
 
 # Short label per game, like "Pitch, Hit, Ump, +1".
 report_status <- function(game_ids, user, listing = scan_game_files()) {
-  if (!is_coach(user)) listing <- listing |> filter(!coaches)
+  if (!is_staff(user)) listing <- listing |> filter(!coaches)
   vapply(game_ids, function(gid) {
     types <- listing$type[listing$game_id == gid]
     if (!length(types)) return("")

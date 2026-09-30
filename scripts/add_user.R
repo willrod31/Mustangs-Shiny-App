@@ -2,6 +2,7 @@
 # Run from the app folder:
 #   source("scripts/add_user.R")
 #   add_user("jsmith", "John Smith", "player", "a-strong-password")
+#   add_user("will", "Will Rodriguez", "admin", "a-strong-password")
 #   add_roster("roster.csv")   # columns: username,name,role,password
 #   remove_user("jsmith")
 #
@@ -32,7 +33,7 @@ USERS_FILE <- "data/users.csv"
   username <- trimws(username)
   role <- tolower(trimws(role))
   if (!nzchar(username)) stop("Username is blank.")
-  if (!role %in% c("coach", "player")) stop("Role must be 'coach' or 'player', not '", role, "'.")
+  role <- match.arg(role, c("admin", "coach", "player"))
   if (is.na(password) || nchar(password) < 6) stop("Password for ", username, " must be at least 6 characters.")
 
   users <- users[tolower(users$username) != tolower(username), , drop = FALSE]

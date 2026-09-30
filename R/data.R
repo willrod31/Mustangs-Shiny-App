@@ -171,7 +171,7 @@ write_index <- function(idx, path = REPORTS_IDX) {
 
 # Players only see Team rows
 visible_index <- function(idx, user) {
-  if (is_coach(user)) idx else idx |> filter(visibility == "Team")
+  if (is_staff(user)) idx else idx |> filter(visibility == "Team")
 }
 
 library_path <- function(file) file.path(REPORTS_DIR, file)
