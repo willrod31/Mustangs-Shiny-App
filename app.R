@@ -215,7 +215,10 @@ server <- function(input, output, session) {
     })
   }
 
-  file_preview <- function(path, name, k) NULL
+  file_preview <- function(path, name, k) {
+    req(user())
+    preview_ui(session, path, paste0("game_file_", k))
+  }
 
   file_entry <- function(f, k) {
     div(
