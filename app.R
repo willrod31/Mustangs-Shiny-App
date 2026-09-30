@@ -48,7 +48,10 @@ nav.navbar { border-bottom: 4px solid var(--silver) !important; }
 /* Login screen */
 #login-overlay { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center;
   justify-content: center; padding: 16px;
-  background: radial-gradient(circle at 50% 30%, #2c347a 0, var(--navy) 55%, #12163a 100%); }
+  /* The navy gradient, slightly see-through over the Hooker Field photo */
+  background: radial-gradient(circle at 50% 30%, rgba(44, 52, 122, .80) 0, rgba(31, 37, 94, .88) 55%,
+      rgba(18, 22, 58, .96) 100%),
+    url('field.jpg') center / cover no-repeat, var(--navy); }
 .login-card { width: 100%; max-width: 380px; border-top: 6px solid var(--silver); }
 .login-logo { width: 170px; max-width: 60%; height: auto; }
 .login-title { color: var(--navy); font-weight: 700; }
@@ -57,6 +60,17 @@ nav.navbar { border-bottom: 4px solid var(--silver) !important; }
 body, .bslib-page-navbar { background: var(--light); }
 .text-navy { color: var(--navy); }
 .welcome-logo { width: 64px; height: auto; flex: none; }
+.field-banner { position: relative; height: 170px; border-radius: 10px; overflow: hidden;
+  margin-top: .5rem; background: url('field.jpg') center 60% / cover no-repeat;
+  border-bottom: 4px solid var(--silver); }
+.field-banner::after { content: ''; position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(31, 37, 94, 0) 40%, rgba(31, 37, 94, .85) 100%); }
+.field-banner span { position: absolute; left: 16px; bottom: 10px; z-index: 1; color: #fff;
+  font-weight: 700; text-shadow: 0 1px 3px rgba(0, 0, 0, .5); }
+@media (max-width: 575.98px) {
+  .field-banner { height: 110px; }
+  .field-banner span { font-size: .8rem; left: 12px; bottom: 8px; }
+}
 .card-header { background: #fff; color: var(--navy); font-weight: 700;
   border-bottom: 2px solid var(--silver); }
 table.dataTable thead th, .table thead th { color: var(--navy); }
@@ -577,8 +591,10 @@ server <- function(input, output, session) {
     }
 
     tagList(
+      div(class = "field-banner", role = "img", `aria-label` = "Hooker Field",
+          tags$span("Hooker Field, home of the Martinsville Mustangs")),
       div(
-        class = "d-flex align-items-center gap-3 mt-2 mb-3",
+        class = "d-flex align-items-center gap-3 mt-3 mb-3",
         tags$img(src = "logo.png", alt = "Mustangs logo", class = "welcome-logo"),
         div(
           h3(paste0("Welcome, ", user()$name), class = "mb-1 text-navy fw-bold"),

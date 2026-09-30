@@ -321,6 +321,7 @@ python/test_report_paths.py   checks Python and R game ids and player folders ma
 deploy.R                  pushes to shinyapps.io (app.R, R, data, reports and www)
 www/logo.png              the team logo (top bar, login screen, Home, phone home-screen icon)
 www/favicon.png           the browser tab icon
+www/field.jpg             Hooker Field photo (Home banner and login background)
 data/schedule.csv         the season
 data/users.csv            logins (hashed, never committed)
 data/trackman/            one TrackMan CSV per game
@@ -333,7 +334,8 @@ reports/index.csv         scouting library metadata
 
 The logo lives in `www/logo.png` and the browser tab icon in `www/favicon.png`.
 If the team logo ever changes, replace those two files (keep the names) and
-publish. The team colors come from the logo and are set once in `BRAND` in
+publish. `www/field.jpg` is the Hooker Field photo behind the login screen and
+at the top of Home; swap in another wide photo with the same name to change it. The team colors come from the logo and are set once in `BRAND` in
 `R/config.R`; the pitch-type colors in `PITCH_COLORS` stay the standard ones.
 
 ## Security notes
