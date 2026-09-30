@@ -272,6 +272,17 @@ plot_card <- function(id) {
 }
 
 trackman_ui <- function() {
+  tagList(
+    conditionalPanel(
+      "!output.tm_has_data",
+      card(card_body(p(class = "text-muted mb-0",
+        "You don't show up in any TrackMan file yet. Your reports appear here after you play.")))
+    ),
+    conditionalPanel("output.tm_has_data", trackman_body())
+  )
+}
+
+trackman_body <- function() {
   layout_sidebar(
     fillable = FALSE,
     sidebar = sidebar(

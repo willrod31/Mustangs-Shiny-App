@@ -75,8 +75,34 @@ server <- function(input, output, session) {
     tm_bump()
     load_trackman()
   })
-  tm <- reactive(tm_all())
-  tm_games <- reactive(game_list(tm()))
+  # Staff get every pitch. A player gets only his own pitches and plate
+  # appearances for our team, or NULL if he isn't in any file. Every tab that
+  # shows TrackMan data reads this, so the filter covers them all.
+  tm <- reactive({
+    d <- tm_all()
+    u <- user()
+    if (is_staff(u)) return(d)
+    keep <- (d$Pitcher %in% u$tm_name & d$PitcherTeam %in% TEAM_CODES) |
+      (d$Batter %in% u$tm_name & d$BatterTeam %in% TEAM_CODES)
+    if (!any(keep)) return(NULL)
+    d[keep, ]
+  })
+  tm_games <- reactive(game_list(tm() %||% empty_trackman()))
+
+  output$tm_has_data <- reactive(!is.null(tm()))
+  outputOptions(output, "tm_has_data", suspendWhenHidden = FALSE)
+
+  # A player only gets the sides he has data for, named for him
+  observe({
+    req(user(), !is_staff(user()))
+    d <- tm()
+    req(!is.null(d))
+    choices <- c("My pitching" = "our_p", "My hitting" = "our_h")
+    choices <- choices[c(any(d$PitcherTeam %in% TEAM_CODES), any(d$BatterTeam %in% TEAM_CODES))]
+    current <- isolate(input$tm_view)
+    updateRadioButtons(session, "tm_view", choices = choices,
+                       selected = if (!is.null(current) && current %in% choices) current else choices[[1]])
+  })
 
   observe({
     g <- tm_games()
@@ -86,7 +112,8 @@ server <- function(input, output, session) {
   })
 
   tm_side <- reactive({
-    req(user(), input$tm_game, input$tm_view)
+    req(user(), !is.null(tm()), input$tm_game, input$tm_view)
+    req(is_staff(user()) || input$tm_view %in% c("our_p", "our_h"))
     tm() |> filter(GameKey == input$tm_game) |> filter_side(input$tm_view)
   })
 
@@ -94,7 +121,11 @@ server <- function(input, output, session) {
     view <- input$tm_view
     req(view)
     players <- players_in(tm_side(), view)
-    choices <- if (is_pitcher_view(view)) players else c("Whole lineup" = "__all__", setNames(players, players))
+    choices <- if (is_pitcher_view(view) || !is_staff(user())) {
+      players
+    } else {
+      c("Whole lineup" = "__all__", setNames(players, players))
+    }
     current <- isolate(input$tm_player)
     selected <- if (!is.null(current) && current %in% choices) current else unname(choices[1])
     updateSelectInput(session, "tm_player", choices = choices, selected = selected)
@@ -210,9 +241,12 @@ server <- function(input, output, session) {
     game_files(selected_game(), user(), listing())
   })
 
+  # Matched against every game (so doubleheaders pair up right), then kept
+  # only if this user can see that game in the TrackMan tab.
   game_tm_key <- reactive({
     g <- game_row()
-    match_trackman(g$game_id, g$date, tm_games())
+    key <- match_trackman(g$game_id, g$date, game_list(tm_all()))
+    if (!is.null(key) && key %in% tm_games()$GameKey) key else NULL
   })
 
   MAX_GAME_FILES <- 12
