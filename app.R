@@ -15,7 +15,13 @@ options(shiny.maxRequestSize = 50 * 1024^2)
 ui <- page_navbar(
   title = APP_TITLE,
   id = "main_nav",
-  theme = bs_theme(version = 5, primary = BRAND$navy, secondary = BRAND$steel),
+  theme = bs_theme(
+    version = 5,
+    primary = BRAND$navy, secondary = BRAND$steel, dark = BRAND$black,
+    bg = BRAND$white, fg = BRAND$black, "border-color" = "#D9DADD",
+    base_font = font_collection("system-ui", "-apple-system", "Segoe UI", "sans-serif"),
+    heading_font = font_collection("system-ui", "-apple-system", "Segoe UI", "sans-serif")
+  ),
   header = tagList(
     tags$head(tags$meta(name = "viewport", content = "width=device-width, initial-scale=1")),
     tags$script(HTML(
