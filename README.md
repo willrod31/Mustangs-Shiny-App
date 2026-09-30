@@ -318,7 +318,9 @@ scripts/make_demo_data.R  fake games, schedule, reports and demo logins
 python/report_paths.py    helpers so the Python report scripts save into the right folders
 python/example_usage.py   example report script (not a real report)
 python/test_report_paths.py   checks Python and R game ids and player folders match
-deploy.R                  pushes to shinyapps.io
+deploy.R                  pushes to shinyapps.io (app.R, R, data, reports and www)
+www/logo.png              the team logo (top bar, login screen, Home, phone home-screen icon)
+www/favicon.png           the browser tab icon
 data/schedule.csv         the season
 data/users.csv            logins (hashed, never committed)
 data/trackman/            one TrackMan CSV per game
@@ -326,6 +328,13 @@ reports/games/<game_id>/  box scores and reports per game (see Where game files 
 reports/files/            scouting library files
 reports/index.csv         scouting library metadata
 ```
+
+## Logo and colors
+
+The logo lives in `www/logo.png` and the browser tab icon in `www/favicon.png`.
+If the team logo ever changes, replace those two files (keep the names) and
+publish. The team colors come from the logo and are set once in `BRAND` in
+`R/config.R`; the pitch-type colors in `PITCH_COLORS` stay the standard ones.
 
 ## Security notes
 

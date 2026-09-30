@@ -8,6 +8,6 @@
 rsconnect::deployApp(
   appDir = ".",
   appName = "mustangs-report-hub",
-  appFiles = c("app.R", "R", "data", "reports"),
+  appFiles = c("app.R", "R", "data", "reports", "www"), # www holds the logo and favicon
   forceUpdate = TRUE
 )
