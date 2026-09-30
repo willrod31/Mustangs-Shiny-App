@@ -66,11 +66,15 @@ server <- function(input, output, session) {
   })
 
   # TrackMan stats ---------------------------------------------------------
-  tm_poll <- trackman_poll(session)
-  tm <- reactive({
+  tm_signal <- change_signal(session, 10000, trackman_files)
+  tm_bump <- reactiveVal(0) # forces a reload right after a TrackMan upload
+  tm_all <- reactive({
     req(user())
-    tm_poll()
+    tm_signal()
+    tm_bump()
+    load_trackman()
   })
+  tm <- reactive(tm_all())
   tm_games <- reactive(game_list(tm()))
 
   observe({
@@ -120,10 +124,12 @@ server <- function(input, output, session) {
   sched_signal <- change_signal(session, 5000, \() SCHEDULE_FILE)
   games_signal <- change_signal(session, 5000, \() list.files(GAMES_DIR, recursive = TRUE, full.names = TRUE))
   files_bump <- reactiveVal(0) # forces a rescan right after a post
+  sched_bump <- reactiveVal(0) # forces a reload right after an edit
 
   sched <- reactive({
     req(user())
     sched_signal()
+    sched_bump()
     load_schedule()
   })
 
@@ -152,7 +158,6 @@ server <- function(input, output, session) {
   })
 
   selected_game <- reactiveVal(NULL)
-  wanted_tab <- reactiveVal(NULL) # tab to open after a post
 
   observeEvent(input$sched_table_rows_selected, {
     i <- input$sched_table_rows_selected
@@ -161,7 +166,6 @@ server <- function(input, output, session) {
     gid <- rows$game_id[i]
     if (!identical(gid, selected_game())) {
       selected_game(gid)
-      wanted_tab(NULL)
       session$sendCustomMessage("scroll_to_game", list())
     }
   })
@@ -260,9 +264,11 @@ server <- function(input, output, session) {
             if (g$played) div(g$result, class = "fs-2 fw-bold", style = paste0("color:", COLOR_PRIMARY))
             else p("Not played yet", class = "text-muted mb-0")
           ),
-          if (!is.null(game_tm_key())) {
-            actionButton("open_tm", "TrackMan stats", class = "btn-secondary ms-auto")
-          }
+          div(
+            class = "ms-auto d-flex flex-wrap gap-2",
+            if (!is.null(game_tm_key())) actionButton("open_tm", "TrackMan stats", class = "btn-secondary"),
+            if (is_staff(user())) actionButton("add_to_game", "Add files to this game", class = "btn-outline-primary")
+          )
         )
       )
     )
@@ -276,7 +282,7 @@ server <- function(input, output, session) {
       idx <- which(files$type == t)
       nav_panel(type_tab[[t]], value = t, lapply(idx, function(k) file_entry(files[k, ], k)))
     })
-    keep <- intersect(c(isolate(wanted_tab()), isolate(input$game_tabs)), types)
+    keep <- intersect(isolate(input$game_tabs), types)
     selected <- if (length(keep)) keep[1] else types[1]
     tagList(header, do.call(navset_card_pill, c(tabs, list(id = "game_tabs", selected = selected))))
   })
@@ -288,49 +294,11 @@ server <- function(input, output, session) {
     updateSelectInput(session, "tm_game", selected = key)
   })
 
-  # Posting reports (coaches only)
-  output$post_card <- renderUI({
+  observeEvent(input$add_to_game, {
     req(is_staff(user()), selected_game())
-    files_bump() # clears the file input after a post
-    card(
-      fill = FALSE,
-      card_header("Post a report to this game"),
-      card_body(
-        fillable = FALSE,
-        layout_column_wrap(
-          width = "200px", fill = FALSE,
-          selectInput("post_type", "Type", choices = REPORT_TYPES),
-          radioButtons("post_vis", "Who can see it",
-                       choices = c("Whole team" = "team", "Coaches only" = "coaches"))
-        ),
-        fileInput("post_file", "File", width = "100%"),
-        actionButton("post_btn", "Post report", class = "btn-primary"),
-        p(class = "text-muted small mt-2 mb-0",
-          "Posting a box score or a pitcher, hitter or umpire report replaces the old one of that type.")
-      )
-    )
-  })
-
-  observeEvent(input$post_btn, {
-    req(is_staff(user()), selected_game())
-    f <- input$post_file
-    if (is.null(f)) {
-      showNotification("Choose a file first.", type = "warning")
-      return()
-    }
-    type <- input$post_type
-    result <- tryCatch(
-      post_game_file(selected_game(), type, if (identical(input$post_vis, "coaches")) "coaches" else "team",
-                     f$datapath, f$name),
-      error = function(e) e
-    )
-    if (inherits(result, "error")) {
-      showNotification(paste("Could not post:", conditionMessage(result)), type = "error")
-      return()
-    }
-    wanted_tab(type)
-    files_bump(files_bump() + 1)
-    showNotification(paste("Posted", basename(result)), type = "message")
+    nav_select("main_nav", "manage")
+    nav_select("admin_tabs", "game_files")
+    updateSelectInput(session, "a_game", selected = selected_game())
   })
 
   # Scouting library -----------------------------------------------------
@@ -427,85 +395,19 @@ server <- function(input, output, session) {
     )
   })
 
-  # Upload tab (coaches only). Added after a coach logs in so players never
-  # get it in their page at all.
+  # Add & manage (coaches and admin). Added after login so players never get
+  # it in their page at all.
   observeEvent(user(), {
     if (is_staff(user())) {
-      nav_insert("main_nav", nav_panel("Upload", value = "upload", upload_ui()),
+      nav_insert("main_nav", nav_panel("Add & manage", value = "manage", icon = icon("pen-to-square"),
+                                       manage_ui(admin = is_admin(user()))),
                  target = "library", position = "after")
     }
   }, once = TRUE)
 
-  observe({
-    req(is_staff(user()))
-    opps <- sort(unique(c(sched()$opponent, lib_all()$opponent)))
-    updateSelectizeInput(session, "up_opponent", choices = c("", opps[opps != ""]),
-                         selected = isolate(input$up_opponent))
-  })
-
-  observe({
-    req(is_staff(user()))
-    idx <- lib_all() |> arrange(desc(uploaded_at))
-    labels <- paste0(idx$title, " (", idx$category, ifelse(idx$date != "", paste0(", ", idx$date), ""), ")")
-    updateSelectInput(session, "del_id", choices = setNames(idx$id, labels))
-  })
-
-  observeEvent(input$up_btn, {
-    req(is_staff(user()))
-    f <- input$up_file
-    if (!nzchar(trimws(input$up_title))) {
-      showNotification("Add a title.", type = "warning")
-      return()
-    }
-    if (is.null(f)) {
-      showNotification("Choose a file first.", type = "warning")
-      return()
-    }
-    result <- tryCatch(
-      add_library_item(
-        f$datapath, f$name,
-        title = input$up_title, category = input$up_category,
-        opponent = input$up_opponent %||% "", player = input$up_player,
-        date = if (length(input$up_date)) format(input$up_date) else "",
-        visibility = input$up_visibility, notes = input$up_notes,
-        uploaded_by = user()$username
-      ),
-      error = function(e) e
-    )
-    if (inherits(result, "error")) {
-      showNotification(paste("Could not upload:", conditionMessage(result)), type = "error")
-      return()
-    }
-    updateTextInput(session, "up_title", value = "")
-    updateTextInput(session, "up_player", value = "")
-    updateTextAreaInput(session, "up_notes", value = "")
-    lib_bump(lib_bump() + 1)
-    showNotification("Report added to the library.", type = "message")
-  })
-
-  observeEvent(input$del_btn, {
-    req(is_staff(user()), input$del_id)
-    item <- lib_all() |> filter(id == input$del_id)
-    req(nrow(item) == 1)
-    showModal(modalDialog(
-      title = "Delete this report?",
-      p(strong(item$title)),
-      p("This removes the file and its library entry. It cannot be undone."),
-      footer = tagList(
-        modalButton("Cancel"),
-        actionButton("del_confirm", "Delete", class = "btn-danger")
-      )
-    ))
-  })
-
-  observeEvent(input$del_confirm, {
-    req(is_staff(user()), input$del_id)
-    delete_library_item(input$del_id)
-    if (identical(lib_selected(), input$del_id)) lib_selected(NULL)
-    removeModal()
-    lib_bump(lib_bump() + 1)
-    showNotification("Report deleted.", type = "message")
-  })
+  manage_server(input, output, session, user, sched = sched, sched_bump = sched_bump,
+                listing = listing, files_bump = files_bump, tm_all = tm_all, tm_bump = tm_bump,
+                lib_all = lib_all, lib_bump = lib_bump)
 
   # Home ----------------------------------------------------------------
   # Link that sends a value to the server without a round trip through inputs
@@ -587,7 +489,6 @@ server <- function(input, output, session) {
     gid <- input$home_open_game
     req(gid %in% sched()$game_id)
     selected_game(gid)
-    wanted_tab(NULL)
     nav_select("main_nav", "schedule")
     row <- match(gid, sched_rows()$game_id)
     if (!is.na(row)) selectRows(dataTableProxy("sched_table"), row)

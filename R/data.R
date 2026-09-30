@@ -88,18 +88,6 @@ game_list <- function(tm) {
     transmute(GameKey, date = Date, home = HomeTeam, away = AwayTeam, opponent, label)
 }
 
-# Reloads TrackMan data whenever a CSV is added, changed or removed.
-trackman_poll <- function(session, dir = TRACKMAN_DIR) {
-  reactivePoll(
-    10000, session,
-    checkFunc = function() {
-      f <- trackman_files(dir)
-      paste(f, file.info(f)$mtime, collapse = "|")
-    },
-    valueFunc = function() load_trackman(dir)
-  )
-}
-
 # Secure file preview ----------------------------------------------------------
 # Report folders are never exposed with addResourcePath (that would make every
 # file public to anyone with the URL). Previews are served through
@@ -233,41 +221,5 @@ library_ui <- function() {
     ),
     table_card("Reports", "lib_table"),
     uiOutput("lib_preview")
-  )
-}
-
-upload_ui <- function() {
-  layout_columns(
-    col_widths = breakpoints(sm = c(12, 12), lg = c(7, 5)),
-    card(
-      fill = FALSE,
-      card_header("Add a report to the scouting library"),
-      card_body(
-        fillable = FALSE,
-        textInput("up_title", "Title", width = "100%"),
-        layout_column_wrap(
-          width = "200px", fill = FALSE,
-          selectInput("up_category", "Category", choices = REPORT_CATEGORIES),
-          selectizeInput("up_opponent", "Opponent", choices = NULL,
-                         options = list(create = TRUE, placeholder = "Pick or type a team")),
-          textInput("up_player", "Player"),
-          dateInput("up_date", "Date", value = Sys.Date())
-        ),
-        radioButtons("up_visibility", "Who can see it", inline = TRUE,
-                     choices = c("Whole team" = "Team", "Coaches only" = "Coaches")),
-        textAreaInput("up_notes", "Notes", rows = 3, width = "100%"),
-        fileInput("up_file", "File (up to 50 MB)", width = "100%"),
-        actionButton("up_btn", "Upload", class = "btn-primary")
-      )
-    ),
-    card(
-      fill = FALSE,
-      card_header("Delete a report"),
-      card_body(
-        fillable = FALSE,
-        selectInput("del_id", "Report", choices = NULL, width = "100%"),
-        actionButton("del_btn", "Delete", class = "btn-outline-danger")
-      )
-    )
   )
 }

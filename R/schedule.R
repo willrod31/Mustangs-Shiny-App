@@ -216,10 +216,6 @@ schedule_ui <- function() {
         DTOutput("sched_table", height = "auto")
       )
     ),
-    div(
-      id = "game_page",
-      uiOutput("game_page"),
-      uiOutput("post_card")
-    )
+    div(id = "game_page", uiOutput("game_page"))
   )
 }
