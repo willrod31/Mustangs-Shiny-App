@@ -507,9 +507,100 @@ server <- function(input, output, session) {
   })
 
   # Home ----------------------------------------------------------------
+  # Link that sends a value to the server without a round trip through inputs
+  open_link <- function(label, input_id, value) {
+    tags$a(href = "#", label, onclick = sprintf(
+      "Shiny.setInputValue('%s', '%s', {priority: 'event'}); return false;", input_id, value
+    ))
+  }
+
   output$home_ui <- renderUI({
     req(user())
-    h3(paste0("Welcome, ", user()$name))
+    games <- sched_status() |>
+      filter(played | reports != "") |>
+      arrange(desc(date)) |>
+      head(5)
+    newest <- lib_visible() |> arrange(desc(uploaded_at)) |> head(5)
+
+    games_tbl <- if (nrow(games)) {
+      tags$table(
+        class = "table table-sm table-hover mb-2",
+        tags$thead(tags$tr(tags$th("Date"), tags$th("Game"), tags$th("Result"), tags$th("Reports"))),
+        tags$tbody(lapply(seq_len(nrow(games)), function(i) {
+          g <- games[i, ]
+          tags$tr(tags$td(format(g$date, "%a %b %d")),
+                  tags$td(open_link(g$matchup, "home_open_game", g$game_id)),
+                  tags$td(g$result), tags$td(g$reports))
+        }))
+      )
+    } else {
+      p(class = "text-muted", "No games with results or reports yet.")
+    }
+
+    reports_tbl <- if (nrow(newest)) {
+      tags$table(
+        class = "table table-sm table-hover mb-0",
+        tags$thead(tags$tr(tags$th("Date"), tags$th("Title"), tags$th("Category"))),
+        tags$tbody(lapply(seq_len(nrow(newest)), function(i) {
+          r <- newest[i, ]
+          tags$tr(tags$td(r$date), tags$td(open_link(r$title, "home_open_report", r$id)),
+                  tags$td(r$category))
+        }))
+      )
+    } else {
+      p(class = "text-muted mb-0", "No library reports yet.")
+    }
+
+    tagList(
+      h3(paste0("Welcome, ", user()$name), class = "mt-2"),
+      p(class = "lead",
+        "Find any game on the Schedule tab to see its pitcher, hitter and umpire reports."),
+      layout_columns(
+        col_widths = breakpoints(sm = c(12, 12), lg = c(6, 6)),
+        card(
+          fill = FALSE,
+          card_header("Latest games"),
+          card_body(
+            fillable = FALSE,
+            div(class = "table-responsive", games_tbl),
+            actionLink("home_full_sched", "Full schedule")
+          )
+        ),
+        card(
+          fill = FALSE,
+          card_header("Newest reports"),
+          card_body(fillable = FALSE, div(class = "table-responsive", reports_tbl))
+        )
+      )
+    )
+  })
+
+  observeEvent(input$home_full_sched, {
+    req(user())
+    updateRadioButtons(session, "sched_mode", selected = "full")
+    nav_select("main_nav", "schedule")
+  })
+
+  observeEvent(input$home_open_game, {
+    req(user())
+    gid <- input$home_open_game
+    req(gid %in% sched()$game_id)
+    selected_game(gid)
+    wanted_tab(NULL)
+    nav_select("main_nav", "schedule")
+    row <- match(gid, sched_rows()$game_id)
+    if (!is.na(row)) selectRows(dataTableProxy("sched_table"), row)
+    session$sendCustomMessage("scroll_to_game", list())
+  })
+
+  observeEvent(input$home_open_report, {
+    req(user())
+    id <- input$home_open_report
+    req(id %in% lib_visible()$id)
+    lib_selected(id)
+    nav_select("main_nav", "library")
+    row <- match(id, lib_rows()$id)
+    if (!is.na(row)) selectRows(dataTableProxy("lib_table"), row)
   })
 }
 
