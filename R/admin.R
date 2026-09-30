@@ -209,9 +209,15 @@ write_users <- function(users, path = USERS_FILE) {
   readr::write_csv(users[, c("username", "name", "role", "tm_name", "hash")], path, na = "")
 }
 
-# Adds a login or, for an existing username, replaces it (resets the password)
-save_login <- function(username, name, role, password, tm_name = "") {
+# Adds a login or, for an existing username, replaces it (resets the password).
+# by is the username of whoever is saving: only the owner can change the owner
+# login, and the owner login always stays an admin.
+save_login <- function(username, name, role, password, tm_name = "", by = "") {
   username <- trimws(username)
+  if (is_owner_name(username)) {
+    if (!is_owner_name(by)) stop("Only the owner can change the owner login.")
+    role <- "admin"
+  }
   name <- trimws(name)
   tm_name <- trimws(tm_name)
   if (!grepl("^[A-Za-z0-9._-]+$", username)) {
@@ -234,6 +240,7 @@ save_login <- function(username, name, role, password, tm_name = "") {
 }
 
 remove_login <- function(username) {
+  if (is_owner_name(username)) stop("The owner login can't be removed.")
   users <- load_users()
   write_users(users[tolower(users$username) != tolower(username), , drop = FALSE])
 }

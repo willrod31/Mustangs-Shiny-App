@@ -19,7 +19,26 @@ load_users <- function(path = USERS_FILE) {
   users
 }
 
+is_owner_name <- function(username) {
+  !is.null(username) && length(username) == 1 && !is.na(username) &&
+    identical(tolower(trimws(username)), tolower(OWNER$username))
+}
+
+# Adds the owner login (role admin, OWNER$hash) when data/users.csv doesn't
+# have it, creating the file if needed. Runs once when the app starts.
+ensure_owner <- function(path = USERS_FILE) {
+  users <- load_users(path)
+  if (any(vapply(users$username, is_owner_name, logical(1)))) return(invisible(FALSE))
+  owner <- data.frame(username = OWNER$username, name = OWNER$name, role = "admin",
+                      tm_name = OWNER$name, hash = OWNER$hash, stringsAsFactors = FALSE)
+  users <- rbind(users[, names(owner)], owner)
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  readr::write_csv(users, path, na = "")
+  invisible(TRUE)
+}
+
 # Returns list(username, name, role, tm_name, slug) on success, NULL otherwise.
+# The owner is always an admin, even if his row in the CSV was edited.
 check_login <- function(username, password, path = USERS_FILE) {
   if (is.null(username) || is.null(password)) return(NULL)
   username <- trimws(username)
@@ -35,7 +54,8 @@ check_login <- function(username, password, path = USERS_FILE) {
   )
   if (!isTRUE(ok)) return(NULL)
 
-  list(username = row$username[1], name = row$name[1], role = row$role[1],
+  role <- if (is_owner_name(row$username[1])) "admin" else row$role[1]
+  list(username = row$username[1], name = row$name[1], role = role,
        tm_name = row$tm_name[1], slug = player_slug(row$tm_name[1]))
 }
 

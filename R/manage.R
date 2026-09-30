@@ -583,7 +583,8 @@ manage_server <- function(input, output, session, user, sched, sched_bump, listi
   observeEvent(input$u_save, {
     req(is_admin(user()))
     res <- tryCatch(
-      save_login(input$u_username, input$u_name, input$u_role, input$u_pass, input$u_tm_name),
+      save_login(input$u_username, input$u_name, input$u_role, input$u_pass, input$u_tm_name,
+                 by = user()$username),
       error = function(e) e
     )
     if (inherits(res, "error")) return(fail("Could not save the login", res))
@@ -606,6 +607,10 @@ manage_server <- function(input, output, session, user, sched, sched_bump, listi
     u <- users_rows()
     if (length(i) != 1 || i > nrow(u)) {
       showNotification("Select a login in the table first.", type = "warning")
+      return()
+    }
+    if (is_owner_name(u$username[i])) {
+      showNotification("The owner login can't be removed.", type = "error")
       return()
     }
     if (tolower(u$username[i]) == tolower(user()$username)) {

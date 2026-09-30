@@ -7,6 +7,9 @@
 #   add_roster("roster.csv")   # columns: username,name,role,password (tm_name optional)
 #   remove_user("jsmith")
 #
+# The owner login (willrod31, admin) is created automatically by the app the
+# first time it starts, so it doesn't need to be added here.
+#
 # Passwords are hashed with sodium before they are saved.
 # Never commit data/users.csv or a plain-text roster file.
 

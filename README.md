@@ -13,9 +13,14 @@ Every login in `data/users.csv` has one of three roles:
 
 | Role | Can do |
 | --- | --- |
-| `admin` | Everything a coach can, plus manage logins and publish to the website |
+| admin (you: `willrod31`) | Everything a coach can, plus manage logins and publish to the website |
 | `coach` | See everything; add, edit and delete reports, box scores, TrackMan files, results and the schedule |
 | `player` | See only his own reports and stats, plus team-wide files like box scores |
+
+The owner login `willrod31` is created automatically the first time the app
+starts (only its password hash is stored). It is always an admin, and nobody
+else can change or remove it. The owner can change his own password in
+**Add & manage > Logins** by saving `willrod31` with a new password.
 
 All of the filtering happens on the server. A player's page never receives a
 file, a link or a stat row that isn't his, not even in counts on the schedule.
@@ -48,7 +53,7 @@ file, a link or a stat row that isn't his, not even in counts on the schedule.
    TEAM_CODES <- c("MAR_MUS")
    ```
 
-3. Add your own admin login (see Adding users below).
+3. Start the app once. It adds the owner login `willrod31` to `data/users.csv`.
 
 ## Try it with demo data
 
@@ -285,7 +290,7 @@ reports/files/20270602120000_Jace_Hollis_plan.pdf
 reports/index.csv                (or remove the demo rows)
 ```
 
-Then remove the demo logins (after adding your own admin login):
+Then remove the demo logins (your `willrod31` owner login stays):
 
 ```r
 source("scripts/add_user.R")

@@ -9,6 +9,15 @@ APP_TITLE <- "Mustangs Report Hub"
 # BatterTeam values for our side and update this list to match.
 TEAM_CODES <- c("MAR_MUS")
 
+# The owner (creator and permanent admin). Only the sodium hash of the
+# password is kept here, never the password. ensure_owner() adds this login
+# to data/users.csv if it's missing.
+OWNER <- list(
+  username = "willrod31",
+  name     = "Will Rodriguez",
+  hash     = '$7$C6..../....Pgqe4Ugaf4Dmtk3kkgjBpj0iT5L70mk5TuEa9W6EQX3$DB2CMmxztg9IjoJWvmjaAgxj4/tEPWFcFnIRe3QPfV/'
+)
+
 # Folders and files
 TRACKMAN_DIR <- "data/trackman"
 SCHEDULE_FILE <- "data/schedule.csv"

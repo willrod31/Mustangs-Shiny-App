@@ -8,6 +8,8 @@ library(sodium)
 
 for (f in list.files("R", full.names = TRUE, pattern = "\\.R$")) source(f, local = TRUE)
 
+ensure_owner()
+
 options(shiny.maxRequestSize = 50 * 1024^2)
 
 ui <- page_navbar(
