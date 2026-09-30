@@ -21,5 +21,7 @@ out <- data.frame(
   folder = paste0(game_folder(schedule$game_id), "/")
 )
 print(out, row.names = FALSE, right = FALSE)
-cat("\nPut team reports in the folder. Coaches-only files go in its coaches/ subfolder.\n")
-cat("File names decide the tab: 'ump' = Umpire, 'pitch' = Pitcher, 'hit' or 'bat' = Hitter.\n")
+cat("\nWhole-team files (box scores) go in the folder. Coaches-only files go in its coaches/",
+    "subfolder, and one player's files in players/<name>/ (for example players/hollis_jace/).\n")
+cat("File names decide the tab: 'box' = Box score, 'ump' = Umpire, 'pitch' = Pitcher,",
+    "'hit' or 'bat' = Hitter.\n")

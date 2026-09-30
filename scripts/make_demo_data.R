@@ -5,9 +5,12 @@
 # Creates:
 #   data/trackman/demo_20270604.csv and demo_20270606.csv
 #   data/schedule.csv (only if missing or already the demo schedule)
-#   demo pitcher/hitter/umpire PDFs in the first two game folders
-#   one coaches-only PDF and one scouting library PDF
-#   logins coach/coach123 and player/player123
+#   in the first two game folders: box_score.pdf (whole team), staff pitcher,
+#   hitter and umpire reports in coaches/, and players/jace_hollis/ and
+#   players/eli_carver/ reports
+#   two scouting library PDFs (a team advance report and a player plan)
+#   logins admin/admin123, coach/coach123, player/player123 (Jace Hollis,
+#   a hitter) and pitcher/pitcher123 (Eli Carver, a pitcher)
 #
 # See the README for how to clear the demo data before the season.
 
@@ -58,14 +61,16 @@ make_lineup <- function(names, id_start) {
   data.frame(name = names, id = id_start + seq_along(names), side = sides, stringsAsFactors = FALSE)
 }
 
+# Our names are "First Last" so the demo logins can use them as their
+# Name in TrackMan. Real TrackMan files often use "Last, First".
 OUR_PITCHERS <- list(
-  make_pitcher("Hale, Brody", 1001, "Right", "power"),
-  make_pitcher("Cruz, Mateo", 1002, "Left", "sinker"),
-  make_pitcher("Lind, Owen", 1003, "Right", "crafty")
+  make_pitcher("Eli Carver", 1001, "Right", "power"),
+  make_pitcher("Mateo Cruz", 1002, "Left", "sinker"),
+  make_pitcher("Owen Lind", 1003, "Right", "crafty")
 )
 OUR_LINEUP <- make_lineup(c(
-  "Reyes, Nico", "Parker, Jace", "Moss, Tyler", "Grant, Eli", "Soto, Adrian",
-  "Frey, Logan", "Banks, Carter", "Ward, Micah", "Ortiz, Dylan"
+  "Nico Reyes", "Jace Hollis", "Tyler Moss", "Drew Mabry", "Adrian Soto",
+  "Logan Frey", "Carter Banks", "Micah Ward", "Dylan Ortiz"
 ), 2000)
 
 opp_players <- function(tag) {
@@ -115,7 +120,18 @@ sim_ball_in_play <- function() {
     result <- sample(c("Out", "Error", "FieldersChoice", "Sacrifice"), 1, prob = c(0.93, 0.03, 0.03, 0.01))
   }
   hit_type <- if (la < 10) "GroundBall" else if (la < 25) "LineDrive" else if (la < 50) "FlyBall" else "Popup"
-  list(ExitSpeed = ev, Angle = la, Distance = dist, PlayResult = result, TaggedHitType = hit_type)
+  # One out on every play the sim counts as an out (Out, Sacrifice,
+  # FieldersChoice), so our pitchers' outs add up to 27 a game.
+  outs_on_play <- as.numeric(result %in% c("Out", "Sacrifice", "FieldersChoice"))
+  runs <- if (result == "HomeRun") {
+    sample(1:2, 1)
+  } else if (result %in% c("Single", "Double") && runif(1) < 0.3) {
+    1
+  } else {
+    0
+  }
+  list(ExitSpeed = ev, Angle = la, Distance = dist, PlayResult = result, TaggedHitType = hit_type,
+       OutsOnPlay = outs_on_play, RunsScored = runs)
 }
 
 sim_game <- function(date_str, home, away, our_side, opp, file) {
@@ -140,7 +156,8 @@ sim_game <- function(date_str, home, away, our_side, opp, file) {
       key <- tolower(half)
       outs <- 0
       pa_of_inning <- 0
-      while (outs < 3 && pa_of_inning < 9) {
+      # Every half inning ends on its third out, so outs add up to 27 a game
+      while (outs < 3) {
         pa_of_inning <- pa_of_inning + 1
         b <- lineup[lineup_pos[key], ]
         lineup_pos[key] <- lineup_pos[key] %% 9 + 1
@@ -153,7 +170,8 @@ sim_game <- function(date_str, home, away, our_side, opp, file) {
           p <- sim_pitch(pitcher, b$side, balls, strikes)
           in_zone <- abs(p$PlateLocSide) <= ZONE$x[2] && p$PlateLocHeight >= ZONE$z[1] && p$PlateLocHeight <= ZONE$z[2]
           swing <- runif(1) < (if (in_zone) 0.66 else 0.28) + 0.08 * (strikes == 2)
-          bip <- list(ExitSpeed = NA, Angle = NA, Distance = NA, PlayResult = "Undefined", TaggedHitType = "Undefined")
+          bip <- list(ExitSpeed = NA, Angle = NA, Distance = NA, PlayResult = "Undefined",
+                      TaggedHitType = "Undefined", OutsOnPlay = 0, RunsScored = 0)
           korbb <- "Undefined"
           done <- FALSE
           if (runif(1) < 0.006) {
@@ -197,6 +215,7 @@ sim_game <- function(date_str, home, away, our_side, opp, file) {
             Extension = p$Extension, InducedVertBreak = p$InducedVertBreak, HorzBreak = p$HorzBreak,
             PlateLocHeight = p$PlateLocHeight, PlateLocSide = p$PlateLocSide,
             ExitSpeed = bip$ExitSpeed, Angle = bip$Angle, Distance = bip$Distance,
+            OutsOnPlay = bip$OutsOnPlay, RunsScored = bip$RunsScored,
             HomeTeam = home, AwayTeam = away, Stadium = if (our_side == "home") "Hooker Field" else paste(home, "Park"),
             Level = "Other", League = "Demo League",
             check.names = FALSE, stringsAsFactors = FALSE
@@ -266,14 +285,27 @@ ids <- make_game_ids(dates[1:2], opponent[1:2])
 for (i in 1:2) {
   gid <- ids[i]
   # Start clean: one report per type, whatever an earlier test posted
-  unlink(list.files(game_folder(gid), pattern = "^(pitcher|hitter|umpire)_report\\.",
-                    full.names = TRUE))
-  demo_pdf(file.path(game_folder(gid), "pitcher_report.pdf"), paste("Pitcher report", gid),
+  for (d in c(game_folder(gid), game_folder(gid, coaches_only = TRUE))) {
+    unlink(list.files(d, pattern = "^(box_score|pitcher_report|hitter_report|umpire_report)(\\.[^.]*)?$",
+                      full.names = TRUE))
+  }
+  unlink(file.path(game_folder(gid), "players"), recursive = TRUE)
+
+  demo_pdf(file.path(game_folder(gid), "box_score.pdf"), paste("Box score", gid),
+           c("Mustangs 6, Opponent 3", "Hollis 2-4, 2B, RBI", "Carver 5 IP, 6 K, 1 BB"))
+  coaches <- game_folder(gid, coaches_only = TRUE)
+  demo_pdf(file.path(coaches, "pitcher_report.pdf"), paste("Staff pitcher report", gid),
            c("Starter: 5 IP, 6 K, 1 BB", "Fastball averaged 92 mph", "Slider whiff rate 38%"))
-  demo_pdf(file.path(game_folder(gid), "hitter_report.pdf"), paste("Hitter report", gid),
+  demo_pdf(file.path(coaches, "hitter_report.pdf"), paste("Team hitter report", gid),
            c("Team: 9 H, 3 BB, 7 K", "Hard hit balls: 8", "Chase rate 24%"))
-  demo_pdf(file.path(game_folder(gid), "umpire_report.pdf"), paste("Umpire report", gid),
+  demo_pdf(file.path(coaches, "umpire_report.pdf"), paste("Umpire report", gid),
            c("Called strike accuracy: 91%", "Missed calls: 11", "Zone ran slightly wide"))
+  demo_pdf(file.path(game_folder(gid), "players", "jace_hollis", "hitter_report.pdf"),
+           paste("Jace Hollis hitter report", gid),
+           c("2 hard-hit balls", "Chased 2 sliders away", "Good takes on 3-1"))
+  demo_pdf(file.path(game_folder(gid), "players", "eli_carver", "pitcher_report.pdf"),
+           paste("Eli Carver pitcher report", gid),
+           c("Fastball 92-94", "Slider: 5 whiffs", "Fell behind 2-0 four times"))
 }
 demo_pdf(file.path(game_folder(ids[1], coaches_only = TRUE), "coaches_notes.pdf"),
          "Coaches notes", c("Bullpen availability for the weekend", "Lineup ideas vs lefties"))
@@ -285,6 +317,10 @@ lib_id <- "20270601120000"
 lib_file <- paste0(lib_id, "_OPP_THREE_advance.pdf")
 demo_pdf(file.path(REPORTS_DIR, lib_file), "Advance report: OPP_THREE",
          c("Lineup is heavy on lefties", "Starters pitch backward early in counts", "Steal a lot with two outs"))
+plan_id <- "20270602120000"
+plan_file <- paste0(plan_id, "_Jace_Hollis_plan.pdf")
+demo_pdf(file.path(REPORTS_DIR, plan_file), "Development plan: Jace Hollis",
+         c("Cut chase rate on sliders away", "Tee work: middle-away line drives", "Check in every two weeks"))
 
 idx_cols <- c("id", "title", "category", "opponent", "player", "date", "visibility",
               "file", "notes", "uploaded_by", "uploaded_at")
@@ -293,12 +329,17 @@ idx <- if (file.exists(REPORTS_IDX)) {
 } else {
   as_tibble(setNames(replicate(length(idx_cols), character(), simplify = FALSE), idx_cols))
 }
-idx <- idx |> filter(id != lib_id)
+idx <- idx |> filter(!id %in% c(lib_id, plan_id))
+now <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
 idx <- bind_rows(idx, tibble(
-  id = lib_id, title = "OPP_THREE advance report", category = "Advance scouting",
-  opponent = "OPP_THREE", player = "", date = "2027-06-01", visibility = "Team",
-  file = lib_file, notes = "Demo scouting report", uploaded_by = "demo",
-  uploaded_at = format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+  id = c(lib_id, plan_id),
+  title = c("OPP_THREE advance report", "Jace Hollis development plan"),
+  category = c("Advance scouting", "Player development"),
+  opponent = c("OPP_THREE", ""), player = c("", "Jace Hollis"),
+  date = c("2027-06-01", "2027-06-02"), visibility = "Team",
+  file = c(lib_file, plan_file),
+  notes = c("Demo scouting report", "Demo player plan: only Jace and the staff see it"),
+  uploaded_by = "demo", uploaded_at = now
 ))
 write_csv(idx, REPORTS_IDX, na = "")
 message("Wrote ", REPORTS_IDX)
@@ -306,7 +347,9 @@ message("Wrote ", REPORTS_IDX)
 # Demo logins -----------------------------------------------------------------
 
 source("scripts/add_user.R")
+add_user("admin", "Demo Admin", "admin", "admin123")
 add_user("coach", "Demo Coach", "coach", "coach123")
-add_user("player", "Demo Player", "player", "player123")
+add_user("player", "Jace Hollis", "player", "player123", tm_name = "Jace Hollis")
+add_user("pitcher", "Eli Carver", "player", "pitcher123", tm_name = "Eli Carver")
 
 message("Demo data ready. Start the app with shiny::runApp()")
