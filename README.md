@@ -122,6 +122,51 @@ so players should tap Download to see the whole report.
 3. Type the result into `data/schedule.csv`.
 4. Deploy: `source("deploy.R")`
 
+## Plugging in the Python reports
+
+The pitcher, hitter, umpire and scouting reports are made by separate Python
+scripts. The Shiny app never runs Python. It only shows the files the scripts
+produce. `python/report_paths.py` (standard library only) gives the scripts the
+right place to save:
+
+```python
+import sys
+sys.path.insert(0, "path/to/Mustangs-Shiny-App/python")
+from report_paths import (pitcher_report_path, hitter_report_path,
+                          umpire_report_path, add_scouting_report)
+
+fig.savefig(pitcher_report_path("2027-06-04", "OPP_ONE"))           # team can see it
+fig.savefig(hitter_report_path("2027-06-12", "River City", game_num=2))  # 2nd game of a doubleheader
+fig.savefig(umpire_report_path("2027-06-04", "OPP_ONE", coaches_only=True))
+
+add_scouting_report("opp_three.pdf", title="OPP_THREE advance",
+                    category="Advance scouting", opponent="OPP_THREE",
+                    date="2027-06-07", visibility="Team")
+```
+
+- Each `*_report_path()` deletes the old report of that type in that folder
+  (whatever its extension) and returns the new path, so there is only ever one.
+- `add_scouting_report()` copies the file into `reports/files/` and adds its row
+  to `reports/index.csv`. `category` must be one of the library categories in
+  `R/config.R` and `visibility` must be `Team` or `Coaches`.
+- **Spell the opponent exactly as in `schedule.csv`.** If the game is not in the
+  schedule the helper prints a warning (the folder is still created, but the
+  app will not show it).
+- **Save as PDF when possible.** PDFs preview in the app and open cleanly on
+  phones. HTML (for example Plotly) also previews, and PNG shows as an image.
+
+`python/example_usage.py` is a working example that saves a matplotlib PDF with
+`PdfPages(pitcher_report_path("2027-06-04", "OPP_ONE"))` and adds one library
+item. Run `python python/test_report_paths.py` to check that Python and R still
+build the same game ids.
+
+With the Python reports plugged in, the after-game routine becomes:
+
+1. Run the Python reports.
+2. Copy the TrackMan CSV into `data/trackman/`.
+3. Type the result into `data/schedule.csv`.
+4. Deploy: `source("deploy.R")`
+
 ## Deploying to shinyapps.io
 
 One time only: log in at shinyapps.io, open Account > Tokens, click Show and run
@@ -170,6 +215,9 @@ R/schedule.R              schedule loading + per-game report folders
 scripts/add_user.R        add/remove logins, bulk roster import
 scripts/make_game_folders.R   creates one folder per game from the schedule
 scripts/make_demo_data.R  fake games, schedule, reports and demo logins
+python/report_paths.py    helpers so the Python report scripts save into the right folders
+python/example_usage.py   example report script (not a real report)
+python/test_report_paths.py   checks Python and R game ids match
 deploy.R                  pushes to shinyapps.io
 data/schedule.csv         the season
 data/users.csv            logins (hashed, never committed)

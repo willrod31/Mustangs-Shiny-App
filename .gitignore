@@ -5,3 +5,4 @@ Rplots.pdf
 rsconnect/
 data/users.csv
 roster.csv
+__pycache__/

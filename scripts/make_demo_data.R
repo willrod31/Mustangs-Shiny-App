@@ -298,7 +298,7 @@ idx <- bind_rows(idx, tibble(
   id = lib_id, title = "OPP_THREE advance report", category = "Advance scouting",
   opponent = "OPP_THREE", player = "", date = "2027-06-01", visibility = "Team",
   file = lib_file, notes = "Demo scouting report", uploaded_by = "demo",
-  uploaded_at = "2027-06-01 12:00:00"
+  uploaded_at = format(Sys.time(), "%Y-%m-%d %H:%M:%S")
 ))
 write_csv(idx, REPORTS_IDX, na = "")
 message("Wrote ", REPORTS_IDX)
