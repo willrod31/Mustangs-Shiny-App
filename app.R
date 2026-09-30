@@ -12,9 +12,50 @@ ensure_owner()
 
 options(shiny.maxRequestSize = 50 * 1024^2)
 
+# All of the app's CSS. The team colors come from BRAND through the CSS
+# variables in :root; the rest is a plain string (no sprintf, so % is safe).
+APP_CSS <- paste0(
+  sprintf(":root { --navy: %s; --black: %s; --silver: %s; --steel: %s; --light: %s; }",
+          BRAND$navy, BRAND$black, BRAND$silver, BRAND$steel, BRAND$light),
+  "
+/* Top bar: navy with a silver horseshoe stripe */
+nav.navbar { border-bottom: 4px solid var(--silver) !important; }
+.brand-badge { display: inline-flex; align-items: center; background: #fff; border-radius: 8px;
+  padding: 2px 6px; margin-right: .6rem; }
+.brand-badge img { height: 34px; width: auto; }
+.brand-name { color: #fff; font-weight: 700; }
+.navbar .navbar-nav > .nav-item > .nav-link { color: rgba(255, 255, 255, .85); }
+.navbar .navbar-nav > .nav-item > .nav-link:hover,
+.navbar .navbar-nav > .nav-item > .nav-link:focus,
+.navbar .navbar-nav > .nav-item > .nav-link.active,
+.navbar .navbar-nav > .nav-item > .nav-link.show {
+  color: #fff; box-shadow: inset 0 -3px 0 var(--silver); }
+.navbar-toggler { border-color: rgba(255, 255, 255, .5); }
+.navbar-toggler-icon { filter: invert(1); }
+/* The Account menu is a light dropdown with dark links */
+.navbar .dropdown-menu { --bs-dropdown-bg: #fff; --bs-dropdown-color: var(--black);
+  --bs-dropdown-link-color: var(--black); --bs-dropdown-link-hover-color: var(--black);
+  --bs-dropdown-link-hover-bg: var(--light); --bs-dropdown-link-active-color: #fff;
+  --bs-dropdown-link-active-bg: var(--navy); --bs-dropdown-border-color: #D9DADD; }
+.navbar .dropdown-menu .dropdown-item { color: var(--black); }
+.account-name { color: var(--navy); font-weight: 700; white-space: nowrap; }
+@media (min-width: 992px) {
+  .navbar .navbar-nav > .nav-item > .nav-link { padding-left: .55rem; padding-right: .55rem;
+    font-size: .93rem; }
+}
+@media (min-width: 992px) and (max-width: 1399.98px) { .brand-name { display: none; } }
+"
+)
+
 ui <- page_navbar(
-  title = APP_TITLE,
+  title = tags$span(
+    class = "d-inline-flex align-items-center",
+    tags$span(class = "brand-badge", tags$img(src = "logo.png", alt = "Mustangs")),
+    tags$span(class = "brand-name", APP_TITLE)
+  ),
+  window_title = APP_TITLE,
   id = "main_nav",
+  navbar_options = navbar_options(bg = BRAND$navy, theme = "dark"),
   theme = bs_theme(
     version = 5,
     primary = BRAND$navy, secondary = BRAND$steel, dark = BRAND$black,
@@ -23,7 +64,13 @@ ui <- page_navbar(
     heading_font = font_collection("system-ui", "-apple-system", "Segoe UI", "sans-serif")
   ),
   header = tagList(
-    tags$head(tags$meta(name = "viewport", content = "width=device-width, initial-scale=1")),
+    tags$head(
+      tags$meta(name = "viewport", content = "width=device-width, initial-scale=1"),
+      tags$link(rel = "icon", type = "image/png", href = "favicon.png"),
+      tags$link(rel = "apple-touch-icon", href = "logo.png"),
+      tags$meta(name = "theme-color", content = BRAND$navy),
+      tags$style(HTML(APP_CSS))
+    ),
     tags$script(HTML(
       "Shiny.addCustomMessageHandler('scroll_to_game', function(msg) {
          if (window.innerWidth < 768) {
@@ -42,8 +89,11 @@ ui <- page_navbar(
   nav_panel("Season stats", value = "season", icon = icon("chart-simple"), season_ui()),
   nav_panel("Scouting library", value = "library", library_ui()),
   nav_spacer(),
-  nav_item(uiOutput("user_badge")),
-  nav_item(actionLink("sign_out", "Sign out", class = "nav-link"))
+  nav_menu(
+    title = "Account", icon = icon("circle-user"), align = "right",
+    nav_item(uiOutput("user_badge")),
+    nav_item(actionLink("logout", "Sign out", class = "dropdown-item"))
+  )
 )
 
 server <- function(input, output, session) {
@@ -66,12 +116,11 @@ server <- function(input, output, session) {
   output$logged_in <- reactive(!is.null(user()))
   outputOptions(output, "logged_in", suspendWhenHidden = FALSE)
 
-  observeEvent(input$sign_out, session$reload())
+  observeEvent(input$logout, session$reload())
 
   output$user_badge <- renderUI({
     req(user())
-    span(class = "badge bg-light text-dark me-2",
-         paste0(user()$name, " (", user()$role, ")"))
+    span(class = "dropdown-item-text account-name", paste0(user()$name, " (", user()$role, ")"))
   })
 
   # TrackMan stats ---------------------------------------------------------
