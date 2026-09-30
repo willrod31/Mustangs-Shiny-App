@@ -52,6 +52,23 @@ nav.navbar { border-bottom: 4px solid var(--silver) !important; }
 .login-card { width: 100%; max-width: 380px; border-top: 6px solid var(--silver); }
 .login-logo { width: 170px; max-width: 60%; height: auto; }
 .login-title { color: var(--navy); font-weight: 700; }
+
+/* Pages, cards and tables */
+body, .bslib-page-navbar { background: var(--light); }
+.text-navy { color: var(--navy); }
+.welcome-logo { width: 64px; height: auto; flex: none; }
+.card-header { background: #fff; color: var(--navy); font-weight: 700;
+  border-bottom: 2px solid var(--silver); }
+table.dataTable thead th, .table thead th { color: var(--navy); }
+table.dataTable tbody tr.selected > * {
+  box-shadow: inset 0 0 0 9999px rgba(31, 37, 94, .85) !important; color: #fff !important; }
+table.dataTable tbody tr.selected a { color: #fff !important; }
+.nav-pills .nav-link.active, .nav-pills .show > .nav-link { background-color: var(--navy); color: #fff; }
+.nav-underline .nav-link.active, .nav-underline .show > .nav-link {
+  color: var(--navy); border-bottom-color: var(--navy); }
+.badge-steel { background-color: var(--steel); color: #fff; }
+/* DT widgets built inside renderUI can keep a fixed height and leave a gap */
+.datatables.html-widget { height: auto !important; }
 "
 )
 
@@ -336,7 +353,7 @@ server <- function(input, output, session) {
       div(
         class = "d-flex flex-wrap align-items-center gap-2 mb-2",
         strong(f$name),
-        if (f$coaches) span(class = "badge bg-warning text-dark", f$who),
+        if (f$coaches) span(class = "badge badge-steel", f$who),
         if (k <= MAX_GAME_FILES) {
           downloadButton(paste0("gdl_", k), "Download", class = "btn-sm btn-outline-primary ms-auto")
         }
@@ -362,9 +379,9 @@ server <- function(input, output, session) {
         div(
           class = "d-flex flex-wrap align-items-start gap-2",
           div(
-            h3(g$matchup, class = "mb-1"),
+            h3(g$matchup, class = "mb-1 text-navy fw-bold"),
             p(when, class = "text-muted mb-2"),
-            if (g$played) div(g$result, class = "fs-2 fw-bold", style = paste0("color:", BRAND$navy))
+            if (g$played) div(g$result, class = "fs-2 fw-bold text-navy")
             else p("Not played yet", class = "text-muted mb-0")
           ),
           div(
@@ -486,7 +503,7 @@ server <- function(input, output, session) {
       card_header(
         class = "d-flex flex-wrap align-items-center gap-2",
         strong(item$title),
-        if (item$visibility == "Coaches") span(class = "badge bg-warning text-dark", "Coaches only"),
+        if (item$visibility == "Coaches") span(class = "badge badge-steel", "Coaches only"),
         downloadButton("lib_dl", "Download", class = "btn-sm btn-outline-primary ms-auto")
       ),
       card_body(
@@ -558,9 +575,15 @@ server <- function(input, output, session) {
     }
 
     tagList(
-      h3(paste0("Welcome, ", user()$name), class = "mt-2"),
-      p(class = "lead",
-        "Find any game on the Schedule tab to see its pitcher, hitter and umpire reports."),
+      div(
+        class = "d-flex align-items-center gap-3 mt-2 mb-3",
+        tags$img(src = "logo.png", alt = "Mustangs logo", class = "welcome-logo"),
+        div(
+          h3(paste0("Welcome, ", user()$name), class = "mb-1 text-navy fw-bold"),
+          p(class = "mb-0 text-muted",
+            "Find any game on the Schedule tab to see its pitcher, hitter and umpire reports.")
+        )
+      ),
       layout_columns(
         col_widths = breakpoints(sm = c(12, 12), lg = c(6, 6)),
         card(
