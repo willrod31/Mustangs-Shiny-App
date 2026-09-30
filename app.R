@@ -8,6 +8,8 @@ library(sodium)
 
 for (f in list.files("R", full.names = TRUE, pattern = "\\.R$")) source(f, local = TRUE)
 
+options(shiny.maxRequestSize = 50 * 1024^2)
+
 ui <- page_navbar(
   title = APP_TITLE,
   id = "main_nav",
@@ -29,6 +31,7 @@ ui <- page_navbar(
   nav_panel("Home", value = "home", uiOutput("home_ui")),
   nav_panel("Schedule", value = "schedule", schedule_ui()),
   nav_panel("TrackMan stats", value = "trackman", trackman_ui()),
+  nav_panel("Scouting library", value = "library", library_ui()),
   nav_spacer(),
   nav_item(uiOutput("user_badge")),
   nav_item(actionLink("sign_out", "Sign out", class = "nav-link"))
@@ -327,6 +330,180 @@ server <- function(input, output, session) {
     wanted_tab(type)
     files_bump(files_bump() + 1)
     showNotification(paste("Posted", basename(result)), type = "message")
+  })
+
+  # Scouting library -----------------------------------------------------
+  lib_signal <- change_signal(session, 5000, \() REPORTS_IDX)
+  lib_bump <- reactiveVal(0)
+
+  lib_all <- reactive({
+    req(user())
+    lib_signal()
+    lib_bump()
+    read_index()
+  })
+  lib_visible <- reactive(visible_index(lib_all(), user()))
+
+  observe({
+    opps <- sort(unique(lib_visible()$opponent))
+    opps <- opps[opps != ""]
+    current <- isolate(input$lib_opp)
+    updateSelectInput(session, "lib_opp", choices = c("All" = "", opps),
+                      selected = if (!is.null(current) && current %in% opps) current else "")
+  })
+
+  lib_rows <- reactive({
+    d <- lib_visible()
+    if (nzchar(input$lib_cat %||% "")) d <- d |> filter(category == input$lib_cat)
+    if (nzchar(input$lib_opp %||% "")) d <- d |> filter(opponent == input$lib_opp)
+    q <- trimws(input$lib_search %||% "")
+    if (nzchar(q)) {
+      hay <- paste(d$title, d$player, d$notes, d$opponent)
+      d <- d[grepl(q, hay, fixed = TRUE, ignore.case = TRUE), ]
+    }
+    d |> arrange(desc(date), desc(uploaded_at))
+  })
+
+  lib_selected <- reactiveVal(NULL)
+  observeEvent(input$lib_table_rows_selected, {
+    i <- input$lib_table_rows_selected
+    rows <- lib_rows()
+    req(length(i) == 1, i <= nrow(rows))
+    lib_selected(rows$id[i])
+  })
+
+  output$lib_table <- renderDT({
+    rows <- lib_rows()
+    sel <- match(isolate(lib_selected()) %||% NA_character_, rows$id)
+    display <- rows |>
+      transmute(Date = date, Title = title, Category = category, Opponent = opponent,
+                Player = player, Visibility = visibility)
+    if (!is_coach(user())) display$Visibility <- NULL
+    datatable(
+      display,
+      rownames = FALSE,
+      selection = list(mode = "single", selected = if (is.na(sel)) NULL else sel),
+      class = "compact hover",
+      options = list(
+        dom = if (nrow(display) > 15) "tp" else "t",
+        pageLength = 15,
+        scrollX = TRUE,
+        language = list(emptyTable = "No reports match")
+      )
+    )
+  })
+
+  lib_item <- reactive({
+    id <- lib_selected()
+    req(id)
+    item <- lib_visible() |> filter(id == !!id)
+    req(nrow(item) == 1)
+    item
+  })
+
+  output$lib_dl <- downloadHandler(
+    filename = function() sub("^[0-9]+_", "", lib_item()$file),
+    content = function(file) file.copy(library_path(lib_item()$file), file)
+  )
+
+  output$lib_preview <- renderUI({
+    item <- lib_item()
+    meta <- c(item$category, item$opponent, item$player, item$date)
+    card(
+      fill = FALSE,
+      card_header(
+        class = "d-flex flex-wrap align-items-center gap-2",
+        strong(item$title),
+        if (item$visibility == "Coaches") span(class = "badge bg-warning text-dark", "Coaches only"),
+        downloadButton("lib_dl", "Download", class = "btn-sm btn-outline-primary ms-auto")
+      ),
+      card_body(
+        fillable = FALSE,
+        p(class = "text-muted mb-1", paste(meta[meta != ""], collapse = " | ")),
+        if (nzchar(item$notes)) p(item$notes),
+        preview_ui(session, library_path(item$file), "lib_file")
+      )
+    )
+  })
+
+  # Upload tab (coaches only). Added after a coach logs in so players never
+  # get it in their page at all.
+  observeEvent(user(), {
+    if (is_coach(user())) {
+      nav_insert("main_nav", nav_panel("Upload", value = "upload", upload_ui()),
+                 target = "library", position = "after")
+    }
+  }, once = TRUE)
+
+  observe({
+    req(is_coach(user()))
+    opps <- sort(unique(c(sched()$opponent, lib_all()$opponent)))
+    updateSelectizeInput(session, "up_opponent", choices = c("", opps[opps != ""]),
+                         selected = isolate(input$up_opponent))
+  })
+
+  observe({
+    req(is_coach(user()))
+    idx <- lib_all() |> arrange(desc(uploaded_at))
+    labels <- paste0(idx$title, " (", idx$category, ifelse(idx$date != "", paste0(", ", idx$date), ""), ")")
+    updateSelectInput(session, "del_id", choices = setNames(idx$id, labels))
+  })
+
+  observeEvent(input$up_btn, {
+    req(is_coach(user()))
+    f <- input$up_file
+    if (!nzchar(trimws(input$up_title))) {
+      showNotification("Add a title.", type = "warning")
+      return()
+    }
+    if (is.null(f)) {
+      showNotification("Choose a file first.", type = "warning")
+      return()
+    }
+    result <- tryCatch(
+      add_library_item(
+        f$datapath, f$name,
+        title = input$up_title, category = input$up_category,
+        opponent = input$up_opponent %||% "", player = input$up_player,
+        date = if (length(input$up_date)) format(input$up_date) else "",
+        visibility = input$up_visibility, notes = input$up_notes,
+        uploaded_by = user()$username
+      ),
+      error = function(e) e
+    )
+    if (inherits(result, "error")) {
+      showNotification(paste("Could not upload:", conditionMessage(result)), type = "error")
+      return()
+    }
+    updateTextInput(session, "up_title", value = "")
+    updateTextInput(session, "up_player", value = "")
+    updateTextAreaInput(session, "up_notes", value = "")
+    lib_bump(lib_bump() + 1)
+    showNotification("Report added to the library.", type = "message")
+  })
+
+  observeEvent(input$del_btn, {
+    req(is_coach(user()), input$del_id)
+    item <- lib_all() |> filter(id == input$del_id)
+    req(nrow(item) == 1)
+    showModal(modalDialog(
+      title = "Delete this report?",
+      p(strong(item$title)),
+      p("This removes the file and its library entry. It cannot be undone."),
+      footer = tagList(
+        modalButton("Cancel"),
+        actionButton("del_confirm", "Delete", class = "btn-danger")
+      )
+    ))
+  })
+
+  observeEvent(input$del_confirm, {
+    req(is_coach(user()), input$del_id)
+    delete_library_item(input$del_id)
+    if (identical(lib_selected(), input$del_id)) lib_selected(NULL)
+    removeModal()
+    lib_bump(lib_bump() + 1)
+    showNotification("Report deleted.", type = "message")
   })
 
   # Home ----------------------------------------------------------------

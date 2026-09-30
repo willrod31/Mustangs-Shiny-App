@@ -140,3 +140,127 @@ preview_ui <- function(session, path, name) {
     tags$iframe(src = url, style = frame_style)
   }
 }
+
+# Scouting library index -------------------------------------------------------
+# reports/index.csv has one row per file in reports/files/.
+# python/report_paths.py writes the same columns.
+
+INDEX_COLS <- c("id", "title", "category", "opponent", "player", "date", "visibility",
+                "file", "notes", "uploaded_by", "uploaded_at")
+
+read_index <- function(path = REPORTS_IDX) {
+  empty <- tibble::as_tibble(setNames(
+    replicate(length(INDEX_COLS), character(), simplify = FALSE), INDEX_COLS
+  ))
+  if (!file.exists(path)) return(empty)
+  idx <- tryCatch(
+    readr::read_csv(path, col_types = readr::cols(.default = readr::col_character()),
+                    progress = FALSE, show_col_types = FALSE),
+    error = function(e) empty
+  )
+  for (n in setdiff(INDEX_COLS, names(idx))) idx[[n]] <- NA_character_
+  idx |>
+    select(all_of(INDEX_COLS)) |>
+    mutate(across(everything(), \(x) ifelse(is.na(x), "", x)))
+}
+
+write_index <- function(idx, path = REPORTS_IDX) {
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  readr::write_csv(idx[, INDEX_COLS], path, na = "")
+}
+
+# Players only see Team rows
+visible_index <- function(idx, user) {
+  if (is_coach(user)) idx else idx |> filter(visibility == "Team")
+}
+
+library_path <- function(file) file.path(REPORTS_DIR, file)
+
+# Copies a file into the library and adds its index row. Returns the new id.
+add_library_item <- function(src_path, original_name, title, category, opponent = "",
+                             player = "", date = "", visibility = "Team", notes = "",
+                             uploaded_by = "") {
+  if (!nzchar(trimws(title))) stop("Title is required.")
+  if (!category %in% REPORT_CATEGORIES) stop("Unknown category: ", category)
+  if (!visibility %in% c("Team", "Coaches")) stop("Visibility must be Team or Coaches.")
+
+  idx <- read_index()
+  id <- format(Sys.time(), "%Y%m%d%H%M%S")
+  while (id %in% idx$id) id <- as.character(as.numeric(id) + 1)
+
+  dir.create(REPORTS_DIR, recursive = TRUE, showWarnings = FALSE)
+  file <- paste0(id, "_", sanitize_name(original_name))
+  if (!file.copy(src_path, library_path(file))) stop("Could not save the file.")
+
+  row <- tibble::tibble(
+    id = id, title = trimws(title), category = category, opponent = trimws(opponent),
+    player = trimws(player), date = as.character(date), visibility = visibility,
+    file = file, notes = trimws(notes), uploaded_by = uploaded_by,
+    uploaded_at = format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+  )
+  write_index(dplyr::bind_rows(idx, row))
+  id
+}
+
+# Removes the file and its index row
+delete_library_item <- function(id) {
+  idx <- read_index()
+  row <- idx[idx$id == id, ]
+  if (!nrow(row)) return(invisible(FALSE))
+  f <- library_path(row$file[1])
+  if (nzchar(row$file[1]) && file.exists(f)) unlink(f)
+  write_index(idx[idx$id != id, ])
+  invisible(TRUE)
+}
+
+# UI ---------------------------------------------------------------------------
+
+library_ui <- function() {
+  layout_sidebar(
+    fillable = FALSE,
+    sidebar = sidebar(
+      open = list(desktop = "open", mobile = "always-above"),
+      selectInput("lib_cat", "Category", choices = c("All" = "", REPORT_CATEGORIES)),
+      selectInput("lib_opp", "Opponent", choices = c("All" = "")),
+      textInput("lib_search", "Search", placeholder = "Title, player, notes")
+    ),
+    table_card("Reports", "lib_table"),
+    uiOutput("lib_preview")
+  )
+}
+
+upload_ui <- function() {
+  layout_columns(
+    col_widths = breakpoints(sm = c(12, 12), lg = c(7, 5)),
+    card(
+      fill = FALSE,
+      card_header("Add a report to the scouting library"),
+      card_body(
+        fillable = FALSE,
+        textInput("up_title", "Title", width = "100%"),
+        layout_column_wrap(
+          width = "200px", fill = FALSE,
+          selectInput("up_category", "Category", choices = REPORT_CATEGORIES),
+          selectizeInput("up_opponent", "Opponent", choices = NULL,
+                         options = list(create = TRUE, placeholder = "Pick or type a team")),
+          textInput("up_player", "Player"),
+          dateInput("up_date", "Date", value = Sys.Date())
+        ),
+        radioButtons("up_visibility", "Who can see it", inline = TRUE,
+                     choices = c("Whole team" = "Team", "Coaches only" = "Coaches")),
+        textAreaInput("up_notes", "Notes", rows = 3, width = "100%"),
+        fileInput("up_file", "File (up to 50 MB)", width = "100%"),
+        actionButton("up_btn", "Upload", class = "btn-primary")
+      )
+    ),
+    card(
+      fill = FALSE,
+      card_header("Delete a report"),
+      card_body(
+        fillable = FALSE,
+        selectInput("del_id", "Report", choices = NULL, width = "100%"),
+        actionButton("del_btn", "Delete", class = "btn-outline-danger")
+      )
+    )
+  )
+}
