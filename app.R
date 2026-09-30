@@ -147,6 +147,8 @@ server <- function(input, output, session) {
     req(user())
     span(class = "dropdown-item-text account-name", paste0(user()$name, " (", user()$role, ")"))
   })
+  # It sits in the closed Account menu, so render it before the menu opens
+  outputOptions(output, "user_badge", suspendWhenHidden = FALSE)
 
   # TrackMan stats ---------------------------------------------------------
   tm_signal <- change_signal(session, 10000, trackman_files)
