@@ -274,7 +274,7 @@ demo_pdf <- function(path, title, lines) {
   dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
   grDevices::pdf(path, width = 8.5, height = 11)
   graphics::plot.new()
-  graphics::text(0.5, 0.95, title, cex = 1.8, font = 2, col = COLOR_PRIMARY)
+  graphics::text(0.5, 0.95, title, cex = 1.8, font = 2, col = BRAND$navy)
   graphics::text(0.5, 0.9, "DEMO REPORT (fake data)", cex = 1, col = "grey40")
   for (i in seq_along(lines)) graphics::text(0.05, 0.8 - i * 0.05, lines[i], adj = 0)
   grDevices::dev.off()

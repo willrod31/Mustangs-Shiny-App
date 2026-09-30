@@ -26,9 +26,16 @@ GAMES_DIR <- "reports/games"
 REPORTS_DIR <- "reports/files"
 REPORTS_IDX <- "reports/index.csv"
 
-# Colors
-COLOR_PRIMARY <- "#7A1F2B"   # maroon
-COLOR_SECONDARY <- "#1F2A44" # navy
+# Team colors, taken from the logo (www/logo.png). Use BRAND$... everywhere
+# instead of typing hex codes.
+BRAND <- list(
+  navy   = "#1F255E",   # mane
+  black  = "#231F20",   # outlines
+  silver = "#ABACB0",   # horseshoe
+  steel  = "#5E6061",   # horseshoe shadow
+  light  = "#F2F2F4",   # light silver page background
+  white  = "#FFFFFF"
+)
 
 # Scouting library categories
 REPORT_CATEGORIES <- c(

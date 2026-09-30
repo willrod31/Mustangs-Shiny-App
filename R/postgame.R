@@ -125,7 +125,7 @@ pitch_log <- function(d) {
 chart_theme <- function() {
   theme_minimal(base_size = 13) +
     theme(legend.position = "bottom", legend.title = element_blank(),
-          plot.title = element_text(face = "bold", color = COLOR_SECONDARY))
+          plot.title = element_text(face = "bold", color = BRAND$navy))
 }
 
 movement_plot <- function(d) {
@@ -201,7 +201,7 @@ hitter_summary <- function(d) {
 }
 
 OUTCOME_COLORS <- c(
-  Whiff = "#D22D49", `In play` = COLOR_SECONDARY, Foul = "#FE9D00",
+  Whiff = "#D22D49", `In play` = BRAND$navy, Foul = "#FE9D00",
   `Called strike` = "#933F2C", Ball = "#9C8975"
 )
 

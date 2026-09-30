@@ -166,10 +166,13 @@ trend_plot <- function(d, side) {
     velo_long()
   g <- g[!is.na(g$value), ]
   validate(need(nrow(g) > 0, "No readings for this player yet."))
-  p <- ggplot(g, aes(GameDate, value, color = stat)) +
-    geom_line(linewidth = 0.9) +
-    geom_point(size = 2.6) +
-    scale_color_manual(values = c(Average = COLOR_SECONDARY, Max = COLOR_PRIMARY)) +
+  # Navy lines and average points, steel triangles for the max
+  p <- ggplot(g, aes(GameDate, value, linetype = stat)) +
+    geom_line(color = BRAND$navy, linewidth = 0.9) +
+    geom_point(aes(shape = stat, color = stat), size = 2.8) +
+    scale_color_manual(values = c(Average = BRAND$navy, Max = BRAND$steel)) +
+    scale_shape_manual(values = c(Average = 16, Max = 17)) +
+    scale_linetype_manual(values = c(Average = "solid", Max = "dotted")) +
     labs(title = title, x = NULL, y = ylab) +
     chart_theme()
   if (side != "pitch") p <- p + geom_hline(yintercept = 95, linetype = "dashed", color = "grey50")

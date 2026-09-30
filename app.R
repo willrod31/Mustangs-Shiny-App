@@ -15,7 +15,7 @@ options(shiny.maxRequestSize = 50 * 1024^2)
 ui <- page_navbar(
   title = APP_TITLE,
   id = "main_nav",
-  theme = bs_theme(version = 5, primary = COLOR_PRIMARY, secondary = COLOR_SECONDARY),
+  theme = bs_theme(version = 5, primary = BRAND$navy, secondary = BRAND$steel),
   header = tagList(
     tags$head(tags$meta(name = "viewport", content = "width=device-width, initial-scale=1")),
     tags$script(HTML(
@@ -301,7 +301,7 @@ server <- function(input, output, session) {
           div(
             h3(g$matchup, class = "mb-1"),
             p(when, class = "text-muted mb-2"),
-            if (g$played) div(g$result, class = "fs-2 fw-bold", style = paste0("color:", COLOR_PRIMARY))
+            if (g$played) div(g$result, class = "fs-2 fw-bold", style = paste0("color:", BRAND$navy))
             else p("Not played yet", class = "text-muted mb-0")
           ),
           div(

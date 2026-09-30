@@ -63,7 +63,7 @@ login_ui <- function() {
   div(
     id = "login-overlay",
     style = paste0(
-      "position:fixed; inset:0; z-index:2000; background:", COLOR_SECONDARY, ";",
+      "position:fixed; inset:0; z-index:2000; background:", BRAND$navy, ";",
       "display:flex; align-items:center; justify-content:center; padding:16px;"
     ),
     div(
@@ -71,7 +71,7 @@ login_ui <- function() {
       style = "width:100%; max-width:360px;",
       div(
         class = "card-body p-4",
-        h4(APP_TITLE, class = "mb-1", style = paste0("color:", COLOR_PRIMARY, ";")),
+        h4(APP_TITLE, class = "mb-1", style = paste0("color:", BRAND$navy, ";")),
         p("Sign in to see reports.", class = "text-muted mb-3"),
         textInput("login_user", "Username", width = "100%"),
         passwordInput("login_pass", "Password", width = "100%"),
