@@ -343,7 +343,7 @@ server <- function(input, output, session) {
     lib_bump()
     read_index()
   })
-  lib_visible <- reactive(visible_index(lib_all(), user()))
+  lib_visible <- reactive(visible_reports(lib_all(), user()))
 
   observe({
     opps <- sort(unique(lib_visible()$opponent))

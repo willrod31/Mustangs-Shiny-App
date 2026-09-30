@@ -169,9 +169,16 @@ write_index <- function(idx, path = REPORTS_IDX) {
   readr::write_csv(idx[, INDEX_COLS], path, na = "")
 }
 
-# Players only see Team rows
-visible_index <- function(idx, user) {
-  if (is_staff(user)) idx else idx |> filter(visibility == "Team")
+# Staff see every row. Players see Team rows that either name no player or
+# name them (so a development plan is only for that player and the staff).
+visible_reports <- function(idx, user) {
+  if (is_staff(user)) return(idx)
+  who <- trimws(idx$player)
+  mine <- nzchar(who) & (
+    player_slug(who) == (user$slug %||% "") |
+      tolower(who) == tolower(trimws(user$name %||% ""))
+  )
+  idx[idx$visibility == "Team" & (!nzchar(who) | mine), ]
 }
 
 library_path <- function(file) file.path(REPORTS_DIR, file)
