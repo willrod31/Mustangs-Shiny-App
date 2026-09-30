@@ -69,7 +69,7 @@ server <- function(input, output, session) {
   # TrackMan stats ---------------------------------------------------------
   tm_signal <- change_signal(session, 10000, trackman_files)
   tm_bump <- reactiveVal(0) # forces a reload right after a TrackMan upload
-  tm_all <- reactive({
+  tm_all <- settled_reactive(function() {
     req(user())
     tm_signal()
     tm_bump()
@@ -161,14 +161,14 @@ server <- function(input, output, session) {
   files_bump <- reactiveVal(0) # forces a rescan right after a post
   sched_bump <- reactiveVal(0) # forces a reload right after an edit
 
-  sched <- reactive({
+  sched <- settled_reactive(function() {
     req(user())
     sched_signal()
     sched_bump()
     load_schedule()
   })
 
-  listing <- reactive({
+  listing <- settled_reactive(function() {
     req(user())
     games_signal()
     files_bump()

@@ -201,6 +201,19 @@ change_signal <- function(session, interval_ms, files_fun) {
   )
 }
 
+# Like reactive(), but dependents only re-run when the value really changes.
+# Right after a save, the file poll sees a new modification time and reloads
+# the same data; without this, tables would re-render and drop the selected
+# row or a cell edit in progress.
+settled_reactive <- function(fun) {
+  value <- reactiveVal(NULL)
+  observe(value(fun()))
+  reactive({
+    req(!is.null(value()))
+    value()
+  })
+}
+
 # Schedule tab UI. Two columns on desktop, stacked on phones.
 schedule_ui <- function() {
   layout_columns(
