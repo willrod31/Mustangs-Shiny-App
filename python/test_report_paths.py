@@ -68,15 +68,47 @@ def with_temp_app(fn):
 @with_temp_app
 def test_one_report_per_type(tmp):
     folder = rp.game_folder("2027-06-04", "OPP_ONE")
-    (folder / "umpire_report.pdf").write_text("old")
+    coaches = folder / "coaches"
+    coaches.mkdir()
+    (folder / "umpire_report.pdf").write_text("old team copy")
+    (coaches / "umpire_report.txt").write_text("old coaches copy")
     (folder / "umpire_zone_notes.pdf").write_text("keep me")
     path = rp.umpire_report_path("2027-06-04", "OPP_ONE", ext="png")
     path.write_text("new")
-    names = sorted(p.name for p in folder.iterdir() if p.is_file())
-    assert names == ["umpire_report.png", "umpire_zone_notes.pdf"], names
+    # the staff report goes to coaches/ and clears the team-wide copies
+    assert path == coaches / "umpire_report.png", path
+    assert sorted(p.name for p in folder.iterdir() if p.is_file()) == ["umpire_zone_notes.pdf"]
+    assert sorted(p.name for p in coaches.iterdir()) == ["umpire_report.png"]
 
-    coach_path = rp.pitcher_report_path("2027-06-04", "OPP_ONE", coaches_only=True)
-    assert coach_path == folder / "coaches" / "pitcher_report.pdf"
+    box = rp.box_score_path("2027-06-04", "OPP_ONE")
+    assert box == folder / "box_score.pdf", box
+
+
+@with_temp_app
+def test_player_reports(tmp):
+    team = rp.hitter_report_path("2027-06-04", "OPP_ONE")
+    team.write_text("staff")
+    mine = rp.hitter_report_path("2027-06-04", "OPP_ONE", player="Hollis, Jace")
+    assert mine == tmp / "reports" / "games" / "2027-06-04_OPPONE" / "players" / "hollis_jace" / "hitter_report.pdf"
+    mine.write_text("v1")
+    again = rp.hitter_report_path("2027-06-04", "OPP_ONE", ext="txt", player="Hollis, Jace")
+    again.write_text("v2")
+    # a player's new report replaces only his own old one
+    assert sorted(p.name for p in mine.parent.iterdir()) == ["hitter_report.txt"]
+    assert team.exists()
+
+
+SLUG_CASES = ["Hollis, Jace", "O'Neil Jr., T.J.", " Smith  John "]
+
+
+def test_player_slug_matches_r():
+    names = ", ".join('"' + n.replace('"', '\\"') + '"' for n in SLUG_CASES)
+    expr = f'source("R/schedule.R"); cat(player_slug(c({names})), sep = "\\n")'
+    out = subprocess.run(["Rscript", "-e", expr], cwd=REPO, capture_output=True, text=True, check=True)
+    expected = out.stdout.strip().splitlines()
+    got = [rp.player_slug(n) for n in SLUG_CASES]
+    assert got == expected, f"Python {got} != R {expected}"
+    assert got == ["hollis_jace", "o_neil_jr_t_j", "smith_john"], got
 
 
 @with_temp_app
@@ -117,8 +149,8 @@ def test_add_scouting_report(tmp):
 
 
 if __name__ == "__main__":
-    tests = [test_game_id_matches_r, test_one_report_per_type,
-             test_schedule_warning, test_add_scouting_report]
+    tests = [test_game_id_matches_r, test_player_slug_matches_r, test_one_report_per_type,
+             test_player_reports, test_schedule_warning, test_add_scouting_report]
     failed = 0
     for t in tests:
         try:

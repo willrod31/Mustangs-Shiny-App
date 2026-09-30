@@ -3,11 +3,19 @@
 Standard library only. The Shiny app never runs Python. It only shows the files
 these helpers put in place:
 
-    from report_paths import pitcher_report_path, add_scouting_report
+    from report_paths import box_score_path, pitcher_report_path, add_scouting_report
 
-    fig.savefig(pitcher_report_path("2027-06-04", "OPP_ONE"))
+    fig.savefig(box_score_path("2027-06-04", "OPP_ONE"))                 # whole team
+    fig.savefig(pitcher_report_path("2027-06-04", "OPP_ONE"))            # coaches only
+    fig.savefig(pitcher_report_path("2027-06-04", "OPP_ONE", player="Hollis, Jace"))
     add_scouting_report("opp_three.pdf", "OPP_THREE advance", "Advance scouting",
                         opponent="OPP_THREE")
+
+A game's files live in three places (same as the app):
+
+    reports/games/<game_id>/                  whole team sees it (box scores)
+    reports/games/<game_id>/coaches/          coaches and admin only
+    reports/games/<game_id>/players/<slug>/   that one player, plus coaches and admin
 
 Spell the opponent exactly as it is in data/schedule.csv.
 """
@@ -85,39 +93,90 @@ def schedule_game_ids():
     return ids
 
 
-def game_folder(date, opponent, game_num=1, coaches_only=False):
-    gid = game_id(date, opponent, game_num)
+def player_slug(name):
+    """Must match player_slug() in R/schedule.R. "Hollis, Jace" -> "hollis_jace"."""
+    slug = re.sub(r"[^a-z0-9]+", "_", str(name).strip().lower())
+    return slug.strip("_")
+
+
+def _check_game(gid):
     known = schedule_game_ids()
     if known and gid not in known:
         print(f"WARNING: {gid} is not in data/schedule.csv. Check the opponent spelling "
               f"and the date. The folder is created anyway, but the app will not show "
               f"it until the schedule has a matching game.")
+
+
+def _audience_folder(gid, audience):
+    """audience is "team", "coaches" or a player name."""
     folder = APP_DIR / "reports" / "games" / gid
-    if coaches_only:
+    if audience == "coaches":
         folder = folder / "coaches"
+    elif audience != "team":
+        slug = player_slug(audience)
+        if not slug:
+            raise ValueError(f"Can't make a folder name from the player {audience!r}.")
+        folder = folder / "players" / slug
+    return folder
+
+
+def game_folder(date, opponent, game_num=1, coaches_only=False, player=None):
+    """The game's folder for the whole team, coaches/ or players/<slug>/."""
+    gid = game_id(date, opponent, game_num)
+    _check_game(gid)
+    audience = player if player else ("coaches" if coaches_only else "team")
+    folder = _audience_folder(gid, audience)
     folder.mkdir(parents=True, exist_ok=True)
     return folder
 
 
-def _fresh_report_path(folder, stem, ext):
-    """Deletes the old <stem>.<any ext> in folder so there is only one per type."""
+def _fresh_report_path(date, opponent, game_num, stem, ext, audience):
+    """Same "one per type" rule as post_game_file() in R/admin.R.
+
+    Deletes the old <stem>.<any ext> and returns the new path. For the team or
+    coaches it clears both the game root and coaches/, so there is one
+    team-wide copy. For a player it clears only that player's folder.
+    """
+    gid = game_id(date, opponent, game_num)
+    _check_game(gid)
+    folder = _audience_folder(gid, audience)
+    folder.mkdir(parents=True, exist_ok=True)
+    if audience in ("team", "coaches"):
+        clear = [_audience_folder(gid, "team"), _audience_folder(gid, "coaches")]
+    else:
+        clear = [folder]
     pattern = re.compile(rf"{re.escape(stem)}(\.[^.]*)?", re.I)
-    for old in folder.iterdir():
-        if old.is_file() and pattern.fullmatch(old.name):
-            old.unlink()
+    for d in clear:
+        if not d.is_dir():
+            continue
+        for old in d.iterdir():
+            if old.is_file() and pattern.fullmatch(old.name):
+                old.unlink()
     return folder / f"{stem}.{ext.lstrip('.')}"
 
 
-def pitcher_report_path(date, opponent, game_num=1, ext="pdf", coaches_only=False):
-    return _fresh_report_path(game_folder(date, opponent, game_num, coaches_only), "pitcher_report", ext)
+def box_score_path(date, opponent, game_num=1, ext="pdf"):
+    """Box score in the game root, so the whole team sees it."""
+    return _fresh_report_path(date, opponent, game_num, "box_score", ext, "team")
 
 
-def hitter_report_path(date, opponent, game_num=1, ext="pdf", coaches_only=False):
-    return _fresh_report_path(game_folder(date, opponent, game_num, coaches_only), "hitter_report", ext)
+def _staff_or_player(player):
+    return player if player else "coaches"
 
 
-def umpire_report_path(date, opponent, game_num=1, ext="pdf", coaches_only=False):
-    return _fresh_report_path(game_folder(date, opponent, game_num, coaches_only), "umpire_report", ext)
+def pitcher_report_path(date, opponent, game_num=1, ext="pdf", player=None):
+    """player=None: the staff report in coaches/. player="Hollis, Jace": his own copy."""
+    return _fresh_report_path(date, opponent, game_num, "pitcher_report", ext, _staff_or_player(player))
+
+
+def hitter_report_path(date, opponent, game_num=1, ext="pdf", player=None):
+    """player=None: the staff report in coaches/. player="Hollis, Jace": his own copy."""
+    return _fresh_report_path(date, opponent, game_num, "hitter_report", ext, _staff_or_player(player))
+
+
+def umpire_report_path(date, opponent, game_num=1, ext="pdf", player=None):
+    """player=None: the staff report in coaches/. player="Hollis, Jace": his own copy."""
+    return _fresh_report_path(date, opponent, game_num, "umpire_report", ext, _staff_or_player(player))
 
 
 def _sanitize_name(name):
@@ -129,7 +188,11 @@ def _sanitize_name(name):
 
 def add_scouting_report(src_file, title, category, opponent="", player="",
                         date="", visibility="Team", notes=""):
-    """Copy a finished scouting report into the library and add its index row."""
+    """Copy a finished scouting report into the library and add its index row.
+
+    Naming a player makes a Team report visible only to that player and the
+    staff. Leave player blank for reports the whole team should see.
+    """
     src = Path(src_file)
     if not src.is_file():
         raise FileNotFoundError(f"Report file not found: {src}")
