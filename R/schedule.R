@@ -65,6 +65,14 @@ report_type <- function(name) {
 
 type_short <- c(Pitcher = "Pitch", Hitter = "Hit", Umpire = "Ump")
 
+# Folder-safe player key. "Hollis, Jace" becomes "hollis_jace".
+# python/report_paths.py player_slug() must give the same result.
+player_slug <- function(x) {
+  x <- tolower(trimws(x))
+  x <- gsub("[^a-z0-9]+", "_", x)
+  gsub("^_+|_+$", "", x)
+}
+
 sanitize_name <- function(x) {
   x <- gsub("[^A-Za-z0-9._-]+", "_", basename(x))
   x <- gsub("_+", "_", x)

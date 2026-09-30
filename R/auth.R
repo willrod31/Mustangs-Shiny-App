@@ -1,23 +1,31 @@
 # Login helpers and the login screen.
 # Passwords are stored as sodium::password_store() hashes in data/users.csv.
 
-read_users <- function(path = USERS_FILE) {
+# All columns are read as character. tm_name (the player's name in TrackMan)
+# defaults to name when the column is missing or blank, so old files still work.
+load_users <- function(path = USERS_FILE) {
   empty <- data.frame(
-    username = character(), name = character(),
-    role = character(), hash = character(), stringsAsFactors = FALSE
+    username = character(), name = character(), role = character(),
+    tm_name = character(), hash = character(), stringsAsFactors = FALSE
   )
   if (!file.exists(path)) return(empty)
   users <- readr::read_csv(path, col_types = readr::cols(.default = "c"), progress = FALSE)
-  as.data.frame(users, stringsAsFactors = FALSE)
+  users <- as.data.frame(users, stringsAsFactors = FALSE)
+  for (n in setdiff(names(empty), names(users))) users[[n]] <- rep(NA_character_, nrow(users))
+  users$name[is.na(users$name)] <- ""
+  blank <- is.na(users$tm_name) | !nzchar(trimws(users$tm_name))
+  users$tm_name[blank] <- users$name[blank]
+  users$tm_name <- trimws(users$tm_name)
+  users
 }
 
-# Returns list(username, name, role) on success, NULL otherwise.
+# Returns list(username, name, role, tm_name, slug) on success, NULL otherwise.
 check_login <- function(username, password, path = USERS_FILE) {
   if (is.null(username) || is.null(password)) return(NULL)
   username <- trimws(username)
   if (!nzchar(username) || !nzchar(password)) return(NULL)
 
-  users <- read_users(path)
+  users <- load_users(path)
   row <- users[tolower(users$username) == tolower(username), , drop = FALSE]
   if (nrow(row) != 1) return(NULL)
 
@@ -27,7 +35,8 @@ check_login <- function(username, password, path = USERS_FILE) {
   )
   if (!isTRUE(ok)) return(NULL)
 
-  list(username = row$username[1], name = row$name[1], role = row$role[1])
+  list(username = row$username[1], name = row$name[1], role = row$role[1],
+       tm_name = row$tm_name[1], slug = player_slug(row$tm_name[1]))
 }
 
 login_ui <- function() {
