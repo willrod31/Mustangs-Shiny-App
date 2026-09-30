@@ -1,8 +1,11 @@
 # Schedule loading and the per-game report folders.
 #
-# data/schedule.csv columns: date, time, opponent, home_away, location, result
-# (game_id is optional). Reports for a game live in reports/games/<game_id>/ and
-# coaches-only files for that game go in reports/games/<game_id>/coaches/.
+# data/schedule.csv columns: game_id, date, time, opponent, home_away, location,
+# result (game_id is optional). A game's files can live in three places:
+#
+#   reports/games/<game_id>/                  whole team sees it (box scores)
+#   reports/games/<game_id>/coaches/          coaches and admin only
+#   reports/games/<game_id>/players/<slug>/   that one player, plus coaches and admin
 
 # game_id = YYYY-MM-DD_Opponent with non-alphanumeric characters stripped.
 # The second game on the same date gets _G2 (third _G3 and so on).
@@ -91,44 +94,70 @@ sanitize_name <- function(x) {
   x
 }
 
-# Every report file under reports/games, one row per file.
+# Every report file under reports/games, one row per file. audience is "team",
+# "coaches" or "player"; slug is the player's folder name for "player" files.
 scan_game_files <- function(dir = GAMES_DIR) {
   empty <- tibble::tibble(game_id = character(), path = character(), name = character(),
-                          type = character(), coaches = logical())
+                          type = character(), audience = character(), slug = character())
   if (!dir.exists(dir)) return(empty)
   rel <- list.files(dir, recursive = TRUE)
   rel <- rel[!grepl("(^|/)\\.", rel)] # skip .gitkeep and hidden files
   parts <- strsplit(rel, "/", fixed = TRUE)
   depth <- lengths(parts)
-  # <game_id>/<file> or <game_id>/coaches/<file>
-  keep <- depth == 2 | (depth == 3 & vapply(parts, \(p) p[2] == "coaches", logical(1)))
+  second <- vapply(parts, \(p) if (length(p) >= 2) p[2] else "", character(1))
+  # <game_id>/<file>, <game_id>/coaches/<file> or <game_id>/players/<slug>/<file>
+  keep <- depth == 2 | (depth == 3 & second == "coaches") | (depth == 4 & second == "players")
   if (!any(keep)) return(empty)
   parts <- parts[keep]
-  rel <- rel[keep]
+  depth <- depth[keep]
   name <- vapply(parts, \(p) p[length(p)], character(1))
   tibble::tibble(
     game_id = vapply(parts, \(p) p[1], character(1)),
-    path = file.path(dir, rel),
+    path = file.path(dir, rel[keep]),
     name = name,
     type = classify_report(name),
-    coaches = lengths(parts) == 3
+    audience = c("team", "coaches", "player")[depth - 1],
+    slug = ifelse(depth == 4, vapply(parts, \(p) p[min(3, length(p))], character(1)), "")
   )
 }
 
-# Visible files for one game, ordered Box score, Pitcher, Hitter, Umpire, Other.
-# Players never see files from the coaches/ subfolder.
-game_files <- function(game_id, user, listing = scan_game_files()) {
-  gid <- game_id
-  out <- listing |> filter(game_id == gid)
-  if (!is_staff(user)) out <- out |> filter(!coaches)
-  out |>
-    arrange(match(type, REPORT_TYPES), coaches, name) |>
-    select(path, name, type, coaches)
+# "jace_hollis" back to "Jace Hollis"
+slug_to_name <- function(slug) {
+  gsub("(^|\\s)([a-z])", "\\1\\U\\2", gsub("_", " ", slug), perl = TRUE)
 }
 
-# Short label per game, like "Box, Pitch, Hit, Ump, +1".
+# The rows of a listing this user may see. Staff see everything. A player sees
+# team files plus his own players/<slug>/ folder, never coaches/ or anyone else's.
+visible_game_listing <- function(listing, user) {
+  if (is_staff(user)) return(listing)
+  slug <- user$slug %||% ""
+  listing |> filter(audience == "team" | (audience == "player" & nzchar(slug) & slug == !!slug))
+}
+
+# Visible files for one game with a "who sees it" label, ordered by
+# REPORT_TYPES, then Everyone first, then who, then name.
+game_files <- function(game_id, user, listing = scan_game_files()) {
+  gid <- game_id
+  out <- visible_game_listing(listing, user) |> filter(game_id == gid)
+  staff <- is_staff(user)
+  out |>
+    mutate(
+      who = case_when(
+        audience == "team" ~ "Everyone",
+        audience == "coaches" ~ "Coaches only",
+        staff ~ slug_to_name(slug),
+        TRUE ~ "Just you"
+      ),
+      coaches = who != "Everyone"
+    ) |>
+    arrange(match(type, REPORT_TYPES), coaches, who, name) |>
+    select(path, name, type, who, coaches)
+}
+
+# Short label per game, like "Box, Pitch, Hit, Ump, +1". Counts only what
+# this user may see.
 report_status <- function(game_ids, user, listing = scan_game_files()) {
-  if (!is_staff(user)) listing <- listing |> filter(!coaches)
+  listing <- visible_game_listing(listing, user)
   vapply(game_ids, function(gid) {
     types <- listing$type[listing$game_id == gid]
     if (!length(types)) return("")
@@ -144,37 +173,6 @@ game_folder <- function(game_id, coaches_only = FALSE) {
   folder <- file.path(GAMES_DIR, game_id)
   if (isTRUE(coaches_only)) folder <- file.path(folder, "coaches")
   folder
-}
-
-# Saves an uploaded file into a game folder. Box scores and Pitcher/Hitter/Umpire
-# reports are saved as box_score.<ext>, pitcher_report.<ext> etc. and replace
-# the old one of that type in that folder, whatever its extension.
-save_game_report <- function(game_id, type, coaches_only, src_path, original_name) {
-  folder <- game_folder(game_id, coaches_only)
-  dir.create(folder, recursive = TRUE, showWarnings = FALSE)
-
-  ext <- tolower(tools::file_ext(original_name))
-  if (type %in% names(type_stem)) {
-    stem <- type_stem[[type]]
-    old <- list.files(folder, pattern = paste0("^", stem, "(\\.[^.]*)?$"),
-                      full.names = TRUE, ignore.case = TRUE)
-    unlink(old)
-    dest_name <- if (nzchar(ext)) paste0(stem, ".", ext) else stem
-  } else {
-    dest_name <- sanitize_name(original_name)
-    # The name decides the type, so a name like "hitting_notes.pdf" would land
-    # under Hitter. Give it a neutral name instead.
-    if (classify_report(dest_name) != "Other") {
-      dest_name <- paste0("other_report", if (nzchar(ext)) paste0(".", ext))
-    }
-    if (file.exists(file.path(folder, dest_name))) {
-      dest_name <- paste0(format(Sys.time(), "%Y%m%d%H%M%S"), "_", dest_name)
-    }
-  }
-  dest <- file.path(folder, dest_name)
-  ok <- file.copy(src_path, dest, overwrite = TRUE)
-  if (!ok) stop("Could not save the file.")
-  dest
 }
 
 # Matches a schedule game to a TrackMan GameKey by date. For doubleheaders the

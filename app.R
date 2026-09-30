@@ -229,7 +229,7 @@ server <- function(input, output, session) {
       div(
         class = "d-flex flex-wrap align-items-center gap-2 mb-2",
         strong(f$name),
-        if (f$coaches) span(class = "badge bg-warning text-dark", "Coaches only"),
+        if (f$coaches) span(class = "badge bg-warning text-dark", f$who),
         if (k <= MAX_GAME_FILES) {
           downloadButton(paste0("gdl_", k), "Download", class = "btn-sm btn-outline-primary ms-auto")
         }
@@ -320,7 +320,8 @@ server <- function(input, output, session) {
     }
     type <- input$post_type
     result <- tryCatch(
-      save_game_report(selected_game(), type, identical(input$post_vis, "coaches"), f$datapath, f$name),
+      post_game_file(selected_game(), type, if (identical(input$post_vis, "coaches")) "coaches" else "team",
+                     f$datapath, f$name),
       error = function(e) e
     )
     if (inherits(result, "error")) {
