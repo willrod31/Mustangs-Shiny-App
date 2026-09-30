@@ -60,19 +60,17 @@ check_login <- function(username, password, path = USERS_FILE) {
 }
 
 login_ui <- function() {
+  # Styles are in APP_CSS in app.R (#login-overlay, .login-card, .login-logo)
   div(
     id = "login-overlay",
-    style = paste0(
-      "position:fixed; inset:0; z-index:2000; background:", BRAND$navy, ";",
-      "display:flex; align-items:center; justify-content:center; padding:16px;"
-    ),
     div(
-      class = "card shadow",
-      style = "width:100%; max-width:360px;",
+      class = "card shadow login-card",
       div(
         class = "card-body p-4",
-        h4(APP_TITLE, class = "mb-1", style = paste0("color:", BRAND$navy, ";")),
-        p("Sign in to see reports.", class = "text-muted mb-3"),
+        div(class = "text-center",
+            tags$img(src = "logo.png", alt = "Mustangs logo", class = "login-logo"),
+            h4(APP_TITLE, class = "login-title mt-2 mb-1"),
+            p("Sign in to see reports.", class = "text-muted mb-3")),
         textInput("login_user", "Username", width = "100%"),
         passwordInput("login_pass", "Password", width = "100%"),
         actionButton("login_btn", "Sign in", class = "btn-primary w-100 mt-2"),

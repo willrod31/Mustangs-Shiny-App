@@ -44,6 +44,14 @@ nav.navbar { border-bottom: 4px solid var(--silver) !important; }
     font-size: .93rem; }
 }
 @media (min-width: 992px) and (max-width: 1399.98px) { .brand-name { display: none; } }
+
+/* Login screen */
+#login-overlay { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center;
+  justify-content: center; padding: 16px;
+  background: radial-gradient(circle at 50% 30%, #2c347a 0, var(--navy) 55%, #12163a 100%); }
+.login-card { width: 100%; max-width: 380px; border-top: 6px solid var(--silver); }
+.login-logo { width: 170px; max-width: 60%; height: auto; }
+.login-title { color: var(--navy); font-weight: 700; }
 "
 )
 
