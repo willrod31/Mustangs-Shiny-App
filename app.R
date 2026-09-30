@@ -31,6 +31,7 @@ ui <- page_navbar(
   nav_panel("Home", value = "home", uiOutput("home_ui")),
   nav_panel("Schedule", value = "schedule", schedule_ui()),
   nav_panel("TrackMan stats", value = "trackman", trackman_ui()),
+  nav_panel("Season stats", value = "season", icon = icon("chart-simple"), season_ui()),
   nav_panel("Scouting library", value = "library", library_ui()),
   nav_spacer(),
   nav_item(uiOutput("user_badge")),
@@ -119,6 +120,9 @@ server <- function(input, output, session) {
   output$hit_summary <- renderDT(stat_table(hitter_summary(tm_sel())))
   output$hit_zone <- renderPlot(zone_outcome_plot(tm_sel()), res = 96)
   output$hit_bip <- renderDT(stat_table(batted_balls(tm_sel())))
+
+  # Season stats -----------------------------------------------------------
+  season_server(input, output, session, user, tm)
 
   # Schedule and game pages ----------------------------------------------
   sched_signal <- change_signal(session, 5000, \() SCHEDULE_FILE)

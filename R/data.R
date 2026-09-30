@@ -3,7 +3,7 @@
 TM_NUMERIC <- c(
   "RelSpeed", "SpinRate", "InducedVertBreak", "HorzBreak", "RelHeight", "RelSide",
   "Extension", "PlateLocHeight", "PlateLocSide", "ExitSpeed", "Angle", "Distance",
-  "Inning", "Balls", "Strikes", "PitchNo"
+  "Inning", "Balls", "Strikes", "PitchNo", "OutsOnPlay", "RunsScored"
 )
 
 TM_TEXT <- c(
@@ -27,10 +27,11 @@ trackman_files <- function(dir = TRACKMAN_DIR) {
 }
 
 empty_trackman <- function() {
-  cols <- c(TM_TEXT, TM_NUMERIC, "SourceFile", "GameKey", "PitchType")
+  cols <- c(TM_TEXT, TM_NUMERIC, "SourceFile", "GameKey", "PitchType", "TeamFirstPitch")
   df <- as.data.frame(setNames(replicate(length(cols), character(), simplify = FALSE), cols))
   for (n in TM_NUMERIC) df[[n]] <- numeric()
   df$Date <- as.Date(character())
+  df$TeamFirstPitch <- logical()
   tibble::as_tibble(df)
 }
 
@@ -64,7 +65,20 @@ load_trackman <- function(dir = TRACKMAN_DIR) {
         AutoPitchType, TaggedPitchType
       ),
       PitchType = ifelse(is.na(PitchType) | PitchType == "", "Undefined", PitchType)
-    )
+    ) |>
+    mark_team_first_pitch()
+}
+
+# TRUE on the first pitch our team threw in each game (sorted by GameKey,
+# Inning, PitchNo). Marked here, before a player's data is filtered down to his
+# own pitches, so games started (GS) stay right.
+mark_team_first_pitch <- function(tm) {
+  ours <- which(tm$PitcherTeam %in% TEAM_CODES)
+  tm$TeamFirstPitch <- FALSE
+  if (!length(ours)) return(tm)
+  o <- ours[order(tm$GameKey[ours], tm$Inning[ours], tm$PitchNo[ours])]
+  tm$TeamFirstPitch[o[!duplicated(tm$GameKey[o])]] <- TRUE
+  tm
 }
 
 # One row per game, newest first
