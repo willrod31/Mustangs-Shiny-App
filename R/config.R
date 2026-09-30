@@ -32,7 +32,7 @@ REPORT_CATEGORIES <- c(
 )
 
 # Report types on a game page, in display order
-GAME_REPORT_TYPES <- c("Pitcher", "Hitter", "Umpire", "Other")
+REPORT_TYPES <- c("Box score", "Pitcher report", "Hitter report", "Umpire report", "Other")
 
 # Strike zone in feet, catcher view
 ZONE <- list(x = c(-0.83, 0.83), z = c(1.5, 3.5))

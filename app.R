@@ -271,10 +271,10 @@ server <- function(input, output, session) {
       return(tagList(header, card(card_body(p(class = "text-muted mb-0", "No reports for this game yet.")))))
     }
 
-    types <- intersect(GAME_REPORT_TYPES, files$type)
+    types <- intersect(REPORT_TYPES, files$type)
     tabs <- lapply(types, function(t) {
       idx <- which(files$type == t)
-      nav_panel(t, value = t, lapply(idx, function(k) file_entry(files[k, ], k)))
+      nav_panel(type_tab[[t]], value = t, lapply(idx, function(k) file_entry(files[k, ], k)))
     })
     keep <- intersect(c(isolate(wanted_tab()), isolate(input$game_tabs)), types)
     selected <- if (length(keep)) keep[1] else types[1]
@@ -299,14 +299,14 @@ server <- function(input, output, session) {
         fillable = FALSE,
         layout_column_wrap(
           width = "200px", fill = FALSE,
-          selectInput("post_type", "Type", choices = GAME_REPORT_TYPES),
+          selectInput("post_type", "Type", choices = REPORT_TYPES),
           radioButtons("post_vis", "Who can see it",
                        choices = c("Whole team" = "team", "Coaches only" = "coaches"))
         ),
         fileInput("post_file", "File", width = "100%"),
         actionButton("post_btn", "Post report", class = "btn-primary"),
         p(class = "text-muted small mt-2 mb-0",
-          "Posting a pitcher, hitter or umpire report replaces the old one of that type.")
+          "Posting a box score or a pitcher, hitter or umpire report replaces the old one of that type.")
       )
     )
   })

@@ -55,15 +55,26 @@ load_schedule <- function(path = SCHEDULE_FILE) {
     select(date, time, opponent, home_away, location, result, game_id, matchup, played)
 }
 
-# The file name decides the report type. "ump" is checked first.
-report_type <- function(name) {
+# The file name decides the report type. "box" is checked first so a file like
+# box_score_hitters.pdf stays a box score, then "ump" so umpire_pitch_calls.pdf
+# stays an umpire report.
+classify_report <- function(name) {
   n <- tolower(name)
-  ifelse(grepl("ump", n), "Umpire",
-         ifelse(grepl("pitch", n), "Pitcher",
-                ifelse(grepl("hit|bat", n), "Hitter", "Other")))
+  ifelse(grepl("box", n), "Box score",
+         ifelse(grepl("ump", n), "Umpire report",
+                ifelse(grepl("pitch", n), "Pitcher report",
+                       ifelse(grepl("hit|bat", n), "Hitter report", "Other"))))
 }
 
-type_short <- c(Pitcher = "Pitch", Hitter = "Hit", Umpire = "Ump")
+# Short labels for the schedule table and tab names on the game page
+type_short <- c(`Box score` = "Box", `Pitcher report` = "Pitch",
+                `Hitter report` = "Hit", `Umpire report` = "Ump")
+type_tab <- c(`Box score` = "Box score", `Pitcher report` = "Pitcher",
+              `Hitter report` = "Hitter", `Umpire report` = "Umpire", Other = "Other")
+
+# Saved file name (without extension) for the one-per-folder types
+type_stem <- c(`Box score` = "box_score", `Pitcher report` = "pitcher_report",
+               `Hitter report` = "hitter_report", `Umpire report` = "umpire_report")
 
 # Folder-safe player key. "Hollis, Jace" becomes "hollis_jace".
 # python/report_paths.py player_slug() must give the same result.
@@ -99,29 +110,29 @@ scan_game_files <- function(dir = GAMES_DIR) {
     game_id = vapply(parts, \(p) p[1], character(1)),
     path = file.path(dir, rel),
     name = name,
-    type = report_type(name),
+    type = classify_report(name),
     coaches = lengths(parts) == 3
   )
 }
 
-# Visible files for one game, ordered Pitcher, Hitter, Umpire, Other.
+# Visible files for one game, ordered Box score, Pitcher, Hitter, Umpire, Other.
 # Players never see files from the coaches/ subfolder.
 game_files <- function(game_id, user, listing = scan_game_files()) {
   gid <- game_id
   out <- listing |> filter(game_id == gid)
   if (!is_staff(user)) out <- out |> filter(!coaches)
   out |>
-    arrange(match(type, GAME_REPORT_TYPES), coaches, name) |>
+    arrange(match(type, REPORT_TYPES), coaches, name) |>
     select(path, name, type, coaches)
 }
 
-# Short label per game, like "Pitch, Hit, Ump, +1".
+# Short label per game, like "Box, Pitch, Hit, Ump, +1".
 report_status <- function(game_ids, user, listing = scan_game_files()) {
   if (!is_staff(user)) listing <- listing |> filter(!coaches)
   vapply(game_ids, function(gid) {
     types <- listing$type[listing$game_id == gid]
     if (!length(types)) return("")
-    main <- unname(type_short[intersect(c("Pitcher", "Hitter", "Umpire"), types)])
+    main <- unname(type_short[intersect(names(type_short), types)])
     n_other <- sum(types == "Other") + sum(duplicated(types[types != "Other"]))
     paste(c(main, if (n_other > 0) paste0("+", n_other)), collapse = ", ")
   }, character(1), USE.NAMES = FALSE)
@@ -135,16 +146,16 @@ game_folder <- function(game_id, coaches_only = FALSE) {
   folder
 }
 
-# Saves an uploaded file into a game folder. Pitcher/Hitter/Umpire reports are
-# saved as pitcher_report.<ext> etc. and replace the old one of that type in
-# that folder, whatever its extension, so there is only ever one.
+# Saves an uploaded file into a game folder. Box scores and Pitcher/Hitter/Umpire
+# reports are saved as box_score.<ext>, pitcher_report.<ext> etc. and replace
+# the old one of that type in that folder, whatever its extension.
 save_game_report <- function(game_id, type, coaches_only, src_path, original_name) {
   folder <- game_folder(game_id, coaches_only)
   dir.create(folder, recursive = TRUE, showWarnings = FALSE)
 
   ext <- tolower(tools::file_ext(original_name))
-  if (type %in% c("Pitcher", "Hitter", "Umpire")) {
-    stem <- paste0(tolower(type), "_report")
+  if (type %in% names(type_stem)) {
+    stem <- type_stem[[type]]
     old <- list.files(folder, pattern = paste0("^", stem, "(\\.[^.]*)?$"),
                       full.names = TRUE, ignore.case = TRUE)
     unlink(old)
@@ -153,7 +164,7 @@ save_game_report <- function(game_id, type, coaches_only, src_path, original_nam
     dest_name <- sanitize_name(original_name)
     # The name decides the type, so a name like "hitting_notes.pdf" would land
     # under Hitter. Give it a neutral name instead.
-    if (report_type(dest_name) != "Other") {
+    if (classify_report(dest_name) != "Other") {
       dest_name <- paste0("other_report", if (nzchar(ext)) paste0(".", ext))
     }
     if (file.exists(file.path(folder, dest_name))) {
